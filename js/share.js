@@ -156,7 +156,7 @@
       ctx.fillStyle = TXT; ctx.font = `bold 48px ${FONT}`;
       ctx.fillText('《勇闯酒仙桥》', 90, 1210);
       ctx.fillStyle = MUTED; ctx.font = `24px ${FONT}`;
-      ctx.fillText('网页小样 v0.8 · 想玩多久玩多久', 90, 1260);
+      ctx.fillText('网页小样 v0.9.4 · 想玩多久玩多久', 90, 1260);
       ctx.fillText('扫自己的生活 · 再闯一次', 90, 1305);
       stamp(ctx, 920, 1260, 130, 100, '日结', RED, 0.18);
 

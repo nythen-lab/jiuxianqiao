@@ -52,7 +52,8 @@
     $('#title').innerHTML = `<div class="title-art img" style="background-image:url(${A.IMG.title})"></div><div class="title-shade"></div>
       <div class="title-box"><h1>${ST.title}</h1><p class="sub">${ST.subtitle} · 一条街，日结 · 想玩多久玩多久</p>
       <div class="tbtns">${G.hasAuto() ? '<button class="btn primary" id="t-cont">继续上次</button>' : ''}<button class="btn ${G.hasAuto() ? '' : 'primary'}" id="t-new">新的开始</button>${G.hasSlot() ? '<button class="btn" id="t-slot">读取手动存档</button>' : ''}</div>
-      <p class="tiny">场景与人物参考纪实田野笔记改写，地名与人名均为虚构。</p></div>`;
+      <div class="tip-title-slot" data-tip-slot="title"></div><p class="tiny">地名与人名均为虚构。</p></div>`;
+    if (window.TIP) TIP.mount($('#title').querySelector('[data-tip-slot]'));
     $('#t-new').onclick = () => { if (window.Music) Music.start(); UI.select(); };
     if ($('#t-cont')) $('#t-cont').onclick = () => { if (window.Music) Music.start(); G.loadAuto(); UI.enter(); };
     if ($('#t-slot')) $('#t-slot').onclick = () => { if (window.Music) Music.start(); G.loadSlot(); UI.enter(); };
@@ -1187,7 +1188,9 @@
           <button class="btn" id="end-title">回到标题</button>
         </div>
       </div>
+      <div class="tip-end-slot" data-tip-slot="end"></div>
       </div></div>`;
+    if (window.TIP) TIP.mount($('#end').querySelector('[data-tip-slot]'));
     // 生成分享图
     let card = null;
     const doShare = () => {
