@@ -420,8 +420,10 @@
     const frac = res.completed ? 1 : clamp(res.hoursDone * 60 / total, 0, 1);
     // v1.0 管饭：每份活的那一顿真的会端上来，吃了才补饱腹（在工时中间发生）
     const mealDefs = (j.meal && C.jobMeals && C.jobMeals[j.id]) || null; const eaten = []; const goalMin = Math.round(total * frac); let adv = 0;
-    if (mealDefs) mealDefs.forEach(m => { if (frac >= Math.min(1, m.at + 0.08)) { const t = Math.round(goalMin * m.at) - adv; if (t > 0) { G.advance(t, 'work'); adv += t; } G.change({ hunger: m.hunger, mental: m.mental || 0 }); eaten.push(m); } });
+    if (mealDefs) mealDefs.forEach(m => { if (frac >= Math.min(1, m.at + 0.05)) { const t = Math.round(goalMin * m.at) - adv; if (t > 0) { G.advance(t, 'work'); adv += t; } const h0 = S.stats.hunger; G.change({ hunger: m.hunger, mental: m.mental || 0 }); eaten.push(Object.assign({}, m, { got: Math.round(S.stats.hunger - h0) })); } });
     G.advance(goalMin - adv, 'work');
+    // 吃过饭的一班：干完时饱腹至少回到这一顿的“保底线”，不会吃了饭还饿得发慌
+    if (eaten.length) { const fl = Math.max.apply(null, eaten.map(m => m.floor || 0)); if (S.stats.hunger < fl) { const add = fl - S.stats.hunger; S.stats.hunger = fl; eaten[eaten.length - 1].got += Math.round(add); eaten[eaten.length - 1].lift = Math.round(add); } }
     const c = j.cost;
     const tired = (S.stats.stamina <= TH().staminaLow ? 1.15 : 1) * (S.stats.hunger <= 20 ? 1.2 : 1) * ((j.heavy || j.id === 'courier') ? (G.identity().heavyJobMult || 1) : 1);
     { const dm = Math.round((c.mental * (res.mentalMult || 1)) * Math.max(frac, .4));
@@ -478,7 +480,7 @@
       S.dayLedger = S.dayLedger || {}; S.dayLedger.wage = (S.dayLedger.wage || 0) + pay + delayed;
     }
     G.fireEvents('afterJob', { job: j.id, completed: !!res.completed });
-    return { pay, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten };
+    return { pay, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten, hungerEnd: Math.round(S.stats.hunger) };
   };
 
   // ================= 吃穿住 =================
@@ -515,7 +517,7 @@
     if (c.tier === 'expensive') G.addAlbum({ id: 'cloth_' + c.id, kind: 'cloth', title: '买下「' + c.name + '」', caption: '花了 ¥' + c.price + '。穿上，腰杆好像直了一点。', amount: c.price });
     return { ok: true, owned: false, cloth: c, delta };
   };
-  G.laundry = function () { const L = C.laundry; if (S.money < L.price) return '钱不够。'; S.money -= L.price; S.stats.clean = L.clean; G.advance(L.minutes); G.log('衣服洗干净了。'); return null; };
+  G.laundry = function () { const L = C.laundry; if (S.money < L.price) return '钱不够。'; S.money -= L.price; S.stats.clean = L.clean; G.advance(L.minutes); G.log('把衣服洗了一遍，人也精神了点。'); return null; };
   // ================= v0.8.1 卖旧衣 / 旧货 =================
   G.sellQuote = function (id) {
     const c = C.clothes.find(x => x.id === id), K = C.broke.sell;
@@ -840,7 +842,7 @@
     else if (sc.hunger <= T.hungerLow) out.push({ id: 'hun', icon: '🍚', label: '饿了', lv: 'warn', tip: `饱腹 ${Math.round(sc.hunger)}：睡觉体力恢复变少、手抖、录取率下降` });
     if (sc.mental <= T.mentalForce + 7) out.push({ id: 'men', icon: '💔', label: '心快碎了', lv: 'danger', tip: `精神 ${Math.round(sc.mental)}：到 ${T.mentalForce} 会蹲在路边缓不过来；到 0 就输了` });
     else if (sc.mental <= T.mentalLow) out.push({ id: 'men', icon: '😞', label: '心里乱', lv: 'warn', tip: `精神 ${Math.round(sc.mental)}：小游戏手抖、录取率下降` });
-    if (sc.clean <= T.cleanLow) out.push({ id: 'cln', icon: '🧺', label: '身上有味儿', lv: 'warn', tip: `干净 ${Math.round(sc.clean)}：体面低，食品厂/药厂录取 -15%。去两元店洗衣服` });
+    if (sc.clean <= T.cleanLow) out.push({ id: 'cln', icon: '🧺', label: '身上有味儿', lv: 'warn', tip: `体面 ${G.decency()}：体面低，食品厂/药厂录取 -15%。去两元店洗衣服` });
     if (S.money < T.moneyLow) out.push({ id: 'mon', icon: '💸', label: '快没钱了', lv: S.money < 4 ? 'danger' : 'warn', tip: `只剩 ¥${S.money}：住不起床位，倒下只能睡街上` });
     return out;
   };

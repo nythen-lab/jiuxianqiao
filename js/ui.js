@@ -44,7 +44,7 @@
   };
   UI.toast = function (t, cls) { const d = document.createElement('div'); d.className = 'toast ' + (cls || ''); d.textContent = t; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 3200); };
   async function flushQueue() { while (G.queue.length) { const q = G.queue.shift(); if (q.kind === 'goal' && window.FX) { await UI.modal({ title: q.title, cls: 'goal-modal' + (q.big ? ' big' : ''), wide: !!q.big, html: FX.goalCardHTML(q.big), buttons: [{ text: q.big ? '接着干' : '知道了' }] }); continue; } await UI.modal({ title: q.title, html: `<p>${q.text}</p>${effText(q.eff)}` }); } }
-  function effText(e) { if (!e) return ''; const n = { stamina: '体力', mental: '精神', hunger: '饱腹', money: '钱', clean: '干净', rep: '口碑' }; const p = Object.keys(e).filter(k => n[k] && e[k]).map(k => `<span class="${e[k] > 0 ? 'up' : 'down'}">${n[k]} ${e[k] > 0 ? '+' : ''}${e[k]}</span>`); return p.length ? `<p class="eff">${p.join(' ')}</p>` : ''; }
+  function effText(e) { if (!e) return ''; const n = { stamina: '体力', mental: '精神', hunger: '饱腹', money: '钱', clean: '体面', decency: '体面', rep: '口碑' }; const val = k => k === 'clean' ? (Math.round(e[k] * 0.45) || Math.sign(e[k])) : e[k]; const p = Object.keys(e).filter(k => n[k] && e[k] && val(k)).map(k => `<span class="${val(k) > 0 ? 'up' : 'down'}">${n[k]} ${val(k) > 0 ? '+' : ''}${val(k)}</span>`); return p.length ? `<p class="eff">${p.join(' ')}</p>` : ''; }
   UI.effText = effText;
 
   // ---------- 屏幕切换 ----------
@@ -166,7 +166,6 @@
       <div class="rec ${G.hasRecord() ? 'bad' : 'ok'}" id="hud-rec" title="案底状态">${G.hasRecord() ? `⚠ 有案底 ×${S.record.count}` : '✓ 无案底'}</div>
       <div class="goalmini" title="目标进度"><span>🎯 ${pr.text}</span><div class="sbar"><i style="width:${Math.round(Math.min(1, pr.pct) * 100)}%"></i></div></div>
       <button class="btn sm mute" id="hud-mute" title="静音">${(window.Music && Music.muted) ? '🔇' : '🔊'}</button>
-      <button class="btn sm life-btn" id="hud-life" title="人生：一步一步往上走">🌱 人生</button>
       <button class="btn sm album-btn" id="hud-album" title="相册">相册${((S.album ? S.album.length : 0) - (S.albumSeen || 0)) > 0 ? `<i>${S.album.length - (S.albumSeen || 0)}</i>` : ''}</button>
       <div class="hbtns"><button class="btn sm" id="hud-save">存档</button><button class="btn sm" id="hud-load">读档</button><button class="btn sm" id="hud-menu">菜单</button></div>`;
     $('#hud-me').onclick = UI.sheet; $('#hud-rec').onclick = UI.sheet;
@@ -335,7 +334,7 @@
     if (S.loc === 'clothes' && open) {
       A2.push(btn('shop', '进店挑衣服', `试穿镜 + 货架 · 正穿着：${G.outfit().name}`, 'gold', 'id="open-clothes"'));
       A2.push(btn('sell', '卖旧衣·旧货', `按原价三到五折收 · 身上零碎也收`));
-      A2.push(btn('laundry', C.laundry.name, `¥${C.laundry.price} · 衣服洗干净 · 1小时 · 现在干净度 ${Math.round(S.stats.clean)}`));
+      A2.push(btn('laundry', C.laundry.name, `¥${C.laundry.price} · 把衣服洗一遍 · 1小时 · 体面 ${G.decency()} → ${Math.max(0, Math.min(100, Math.round(G.outfit().decency + C.laundry.clean * 0.45 - 20)))}`));
     }
     if (S.loc === 'riverside' && open) {
       const R = C.riverside;
@@ -594,7 +593,7 @@
       if (c.warm) fx.push('保暖');
       if (c.hire) Object.keys(c.hire).forEach(k => { const j = C.jobs.find(x => x.id === k); if (j) fx.push(`${j.name}+${Math.round(c.hire[k]*100)}%`); });
       if (c.mental) fx.push(`精神+${c.mental}`);
-      if (c.cleanBonus) fx.push(`干净+${c.cleanBonus}`);
+      if (c.cleanBonus) fx.push(`体面+${Math.max(1, Math.round(c.cleanBonus * 0.45))}`);
       const go = await UI.modal({
         title: '试穿 · ' + c.name,
         wide: true,
@@ -781,7 +780,7 @@
     });
     if (k === 'food') return UI.foodFlow(v);
     if (k === 'cloth') return UI.clothFlow(v);
-    if (k === 'laundry') return act(async () => { const r = G.laundry(); if (r) UI.toast(r, 'bad'); else { await FX.micro('laundry'); UI.toast('衣服洗干净了'); } });
+    if (k === 'laundry') return act(async () => { const r = G.laundry(); if (r) UI.toast(r, 'bad'); else { await FX.micro('laundry'); UI.toast(`衣服洗过了，体面 ${G.decency()}`); } });
     if (k === 'beer') return act(async () => {
       const B = C.bar.beer; if (S.money < B.price) return UI.toast('钱不够。', 'bad');
       const r = G.beer(); if (r) return UI.toast(r, 'bad');
@@ -856,13 +855,13 @@
     if (ch === 1) { const lv = perf.lv || 0; const q = Math.max(0.3, Math.min(0.95, 0.62 + lv * 0.05 + Math.random() * 0.1 - (1 - perf.win) * 0.4)); res = { completed: true, quality: q, mentalMult: 1.05 }; }
     else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt });
     UI._beatVerb = "干到"; const out = G.finishJob(o, wage, res);
-    for (const ml of (out.meals || [])) { await UI.eatMoment({ id: 'jobmeal_' + ml.dish, name: ml.name, dish: ml.dish, price: ml.tier === '好' ? 16 : 10, flavor: ml.flavor, text: ml.text }, { delta: { hunger: ml.hunger, mental: ml.mental || 0 } }); }
+    for (const ml of (out.meals || [])) { UI.toast(`${ml.name} +${ml.got} 饱腹`); await UI.eatMoment({ id: 'jobmeal_' + ml.dish, name: ml.name, dish: ml.dish, price: ml.tier === '好' ? 16 : 10, flavor: ml.flavor, text: ml.text }, { delta: { hunger: ml.got, mental: ml.mental || 0 } }); }
     if (window.FX && (res.completed || res.hoursDone > 0.5)) await FX.micro('shiftend', { from: startAbs, to: S.time, bg: jbg, lines: [res.completed ? `${G.clock(startAbs)} 到 ${G.clock()}，这一班熬完了。` : `只干到 ${G.clock()} 就停了。`] });
     let head = res.completed ? '下班了' : res.fired ? '被开除了' : '跑路了';
     let body = res.completed ? `<p>干完了一整班，拿到 <b>¥${out.pay}</b>${res.fines ? `（扣了 ${res.fines} 元）` : ''}。</p>${res.quality != null ? `<p>干活质量 <b>${Math.round(res.quality * 100)}%</b>${out.bonus ? `，${out.bonus > 0 ? `组长多给了 ¥${out.bonus}` : `干得不好，扣了 ¥${-out.bonus}`}` : ''}${out.skillPay ? `，熟手补贴 +¥${out.skillPay}` : ''}。</p>` : ''}${res.summary ? `<p class="muted">${res.summary}</p>` : ''}` :
       res.fired ? `<p>“你别干了！”${j.quitPay === 'hourly' ? `厂里按小时结钱：干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。` : '一分钱也没拿到。'}</p>` :
       `<p>${j.quitPay === 'hourly' ? `你走了。干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。（厂里的规矩：头一个小时不算钱）` : '你借口上厕所跑了。中途跑路就等于白干。'}</p>`;
-    if ((out.meals || []).length) body += `<p class="why">${out.meals.map(m => `管的饭：${m.name}（${m.tier === '好' ? '实在' : m.tier === '差' ? '凑合不起来' : '凑合'}，饱腹 +${m.hunger}）`).join('；')}。</p>`;
+    if ((out.meals || []).length) body += `<p class="why">${out.meals.map(m => `管的饭：${m.name}（${m.tier === '好' ? '实在' : m.tier === '差' ? '凑合不起来' : '凑合'}，饱腹 +${m.got}）`).join('；')}。收工时饱腹 ${out.hungerEnd}。</p>`;
     if (out.cut) body += `<p class="why">中介从工钱里抽走了 <b>¥${out.cut}</b>${out.gross ? `（原本 ¥${out.gross}）` : ''}。</p>`;
     if (out.delayed) body += `<p class="why bad">工钱 ¥${out.delayed} 没当场给：“过两天一起结。”（会自动到账，但这几天手头更紧）</p>`;
     if (out.unpaid) body += `<p class="why bad">工钱 ¥${Math.max(0, (out.gross || 0) - (out.cut || 0))} 没拿到。中介说厂里没打款，电话再打就不接了。</p>`;
@@ -1144,9 +1143,9 @@
         ${G.hasRecord() ? `<ul>${S.record.log.map(r => `<li>第${r.day}天 ${r.clock} · ${r.where} · ${r.what}</li>`).join('')}</ul><p>影响：招工录取率下降、<b>临时安保不要</b>、工钱打折、工友疏远。</p>` : '<p>保持下去，保安的活才会要你。</p>'}</div></div>
       <div class="sh-r"><div class="goalbox"><b>目标</b><p>${I.goalText}</p><p>进度：${pr.text}</p></div>
         <table class="kv"><tr><td>体力</td><td>${Math.round(S.stats.stamina)} / ${S.maxSta}</td><td>精神</td><td>${Math.round(S.stats.mental)}</td></tr>
-        <tr><td>饱腹</td><td>${Math.round(S.stats.hunger)}</td><td>干净</td><td>${Math.round(S.stats.clean)}</td></tr>
-        <tr><td>体面</td><td>${G.decency()}</td><td>街头口碑</td><td>${S.rep}</td></tr>
-        <tr><td>脑力</td><td>${S.attrs.brain}</td><td>阅历</td><td>${S.attrs.exp}</td></tr>
+        <tr><td>饱腹</td><td>${Math.round(S.stats.hunger)}</td><td>体面</td><td>${G.decency()}</td></tr>
+        <tr><td>街头口碑</td><td>${S.rep}</td><td>脑力</td><td>${S.attrs.brain}</td></tr>
+        <tr><td>阅历</td><td>${S.attrs.exp}</td><td></td><td></td></tr>
         <tr><td>手机熟练</td><td>${S.attrs.phone}</td><td>强制睡倒</td><td>${(S.forced || {}).sleep || 0} 次</td></tr>
         <tr><td>衣服</td><td>${G.outfit().name}</td><td>身上东西</td><td>${Object.entries(S.items).filter(e => e[1] > 0).map(e => e[0] + '×' + e[1]).join('、') || '无'}</td></tr>
         <tr><td>挣到</td><td>¥${S.earned}</td><td>晕倒</td><td>${S.collapses} / ${ST.collapse.maxTimes}</td></tr></table>

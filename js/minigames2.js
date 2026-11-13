@@ -122,7 +122,7 @@
     }, o.over || {}));
   };
 
-  MG.green = function (root, o) {
+  MG.greenDrag = function (root, o) {
     const g = { x: 380, y: 170, cols: 6, rows: 4, cw: 80, ch: 62 };
     const mkSlots = () => { const a = []; for (let r = 0; r < g.rows; r++) for (let c = 0; c < g.cols; c++) a.push({ x: g.x + c * g.cw + g.cw / 2, y: g.y + r * g.ch + g.ch / 2, used: false }); return a; };
     return dragGame(root, o, Object.assign({
@@ -279,7 +279,7 @@
     help: '把水泥袋、砖垛拖到斗车上亮着的格子里，<b>从下往上</b>码。水泥袋死沉，等它不晃再松手。', note: '晃动条变红时松手会码塌。',
     bg: 'img/bg-job-site.jpg', hours: 10, startH: 7, okWord: '装车', errWord: '撒了', dropLine: '水泥袋摔破了，师傅骂了一句！', tiltLine: '一垛砖全塌了！', goodLine: '师傅点了点头。',
     kg: () => Math.random() < 0.45 ? 30 + Math.floor(Math.random() * 15) : 12 + Math.floor(Math.random() * 12) } }));
-  MG.stage = (root, o) => MG.green(root, Object.assign({}, o, { over: { type: 'stage', title: '拆装舞台 · 09:00–18:00',
+  MG.stage = (root, o) => MG.greenDrag(root, Object.assign({}, o, { over: { type: 'stage', title: '拆装舞台 · 09:00–18:00',
     help: '把舞台地板一块一块拖到亮着的格子上，<b>对准</b>再松手。对不齐，演出时会有人绊倒。', note: '对得越准，验收越快；歪了要返工。',
     bg: 'img/bg-job-stage.jpg', hours: 9, startH: 9, okWord: '铺好', errWord: '返工', dropLine: '地板砸在地上，舞台监督吼了一嗓子！', tiltLine: '对歪了，缝隙卡脚，重来！', goodLine: '严丝合缝！' } }));
 

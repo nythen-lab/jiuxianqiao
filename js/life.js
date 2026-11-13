@@ -16,7 +16,8 @@
   };
   G.age = () => (G.identity().age || 30) + Math.floor((G.dayNum() - 1) / L.ageYearDays);
   G.isFemale = () => G.identity().id === 'azhen' || !!G.identity().female;
-  { const mg = G.migrate; G.migrate = function () { mg(); if (SS()) LIFE.st(); }; }
+  { const mg = G.migrate; G.migrate = function () { mg(); const s = SS(); if (s) { LIFE.st(); s.flags = s.flags || {}; // v1.0.1：旧存档里按天数解锁的礼堂/幼儿园，改成要等剧情
+      if (s.unlocked) { const l = s.life; if (!s.flags.hallOpen && !(l.partner && l.partner.state === 'married')) delete s.unlocked['place:hall']; if (!s.flags.kinderOpen && !l.kid) delete s.unlocked['place:kinder']; } } }; }
   { const ng = G.newGame; G.newGame = function (id) { const r = ng(id); LIFE.st(); return r; }; }
   LIFE.funds = () => SS().money + LIFE.st().bank;
   LIFE.pay = amt => { if (LIFE.funds() < amt) return false; const s = SS(), l = LIFE.st(); const c = Math.min(s.money, amt); s.money -= c; l.bank -= (amt - c); return true; };
@@ -25,31 +26,35 @@
   LIFE.partnerWord = () => { const p = LIFE.st().partner; return p && p.kind === 'male' ? '他' : '她'; };
   LIFE.title = () => { const p = LIFE.st().partner; return !p ? '' : p.state === 'married' ? (p.kind === 'male' ? '丈夫' : '爱人') : p.state === 'dating' ? '对象' : '认识的人'; };
 
-  // ================= 阶梯 =================
+  // ================= 记账（只在后台记，不给玩家看清单）=================
   LIFE.mark = id => { const l = LIFE.st(); if (!l.done[id]) { l.done[id] = G.dayNum(); return true; } return false; };
-  LIFE.steps = function () {
-    const l = LIFE.st(), p = l.partner; const S = SS();
-    if (l.bank >= L.bankGoal1) LIFE.mark('save'); if (l.met) LIFE.mark('meet'); if (p && (p.state === 'dating' || p.state === 'married')) LIFE.mark('love'); if (p && p.state === 'married') LIFE.mark('wed');
-    if (l.home) LIFE.mark('home'); if (l.kid) LIFE.mark('kid'); if (l.kid && l.kid.enrolled) LIFE.mark('school');
-    const kidsNo = !LIFE.kidsOk();
-    return C.lifeSteps.map(st => {
-      const d = !!l.done[st.id]; let note = '', skip = false;
-      if (st.id === 'save') note = d ? `存折 ¥${l.bank}` : `存折 ¥${l.bank} / ¥${L.bankGoal1}`;
-      if (st.id === 'meet') note = d ? `${p.name}（${p.age}岁）` : (G.dayNum() < L.meet.minDay ? `第 ${L.meet.minDay} 天以后` : '去河边/饭馆/澡堂转转');
-      if (st.id === 'love') note = d ? `好感 ${Math.round(p.aff)}` : p ? `好感 ${Math.round(p.aff)} / 50 才敢开口` : '';
-      if (st.id === 'wed') { const need = L.bride + L.weddings[0].price; note = d ? '已办' : !LIFE.canMarry() ? `还差 ${L.minMarryAge[G.isFemale() ? 'f' : 'm'] - G.age()} 岁才到领证的年纪` : `最低约 ¥${need}（彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price} 起）`; }
-      if (st.id === 'home') note = d ? l.home.name : `老楼一居首付 ¥${Math.round(L.houses[0].total * L.downRate)} 起，存折里出`;
-      if (st.id === 'kid') { if (kidsNo) { skip = true; note = '这个年纪，孩子的事不用想了'; } else note = d ? `${l.kid.name}` : l.pregnancy ? `孕期，还有 ${Math.max(0, l.pregnancy.due - G.dayNum())} 天` : '成了家，才敢要孩子'; }
-      if (st.id === 'school') { if (kidsNo) { skip = true; note = ''; } else note = d ? '已入园' : l.kid ? `孩子满 ${L.kinderAge} 天能入园（现在 ${G.dayNum() - l.kid.born} 天）` : ''; }
-      return Object.assign({}, st, { done: d, note, skip, hint: st.hint.replace('{n}', L.bankGoal1) });
-    });
+
+  // ================= 自然冒出来的事：好感够了才有礼堂；成了家才有孩子和幼儿园 =================
+  const openPlace = id => { const s = SS(); s.unlocked = s.unlocked || {}; if (!s.unlocked['place:' + id]) s.unlocked['place:' + id] = G.dayNum(); };
+  LIFE.emerge = function () {
+    const s = SS(), l = LIFE.st(), p = l.partner, d = G.dayNum(); s.flags = s.flags || {}; const F = s.flags;
+    if (p && p.state === 'dating' && p.aff >= 70 && LIFE.canMarry() && !F.hallOpen) {
+      F.hallOpen = d; openPlace('hall'); const w = LIFE.partnerWord();
+      G.log(`${p.name}说，路过幸福礼堂的时候，看了好一会儿。`, 'good');
+      G.queue.push({ title: `${p.name}提起了一件事`, text: `${p.name}低着头拨弄着衣角：“前两天我路过河对面那个幸福礼堂，红灯笼挂得老高……”${w}没往下说，你也没接话，可你们俩都听懂了。<p class="story">💒 地图上多了一处：幸福礼堂。</p>` });
+    }
+    if (p && p.state === 'married' && !F.babyTalk && LIFE.kidsOk() && F.married && d - F.married >= 3) {
+      F.babyTalk = d;
+      G.queue.push({ title: '晚饭桌上', text: `${p.name}把筷子放下，忽然说：“隔壁那家的娃会喊人了……你说，咱们要不要也有个孩子？”<p class="muted">想好了，回家跟${LIFE.partnerWord()}好好商量。</p>` });
+    }
+    if (l.kid && !F.kinderOpen && d - l.kid.born >= L.kinderAge - 4) {
+      F.kinderOpen = d; openPlace('kinder');
+      G.log('听说向阳幼儿园开始报名了。', 'good');
+      G.queue.push({ title: '向阳幼儿园', text: `楼下邻居拎着菜篮子拦住你：“${l.kid.name}也快到岁数了吧？向阳幼儿园这周开始报名。”<p class="story">🧸 地图上多了一处：向阳幼儿园。</p>` });
+    }
   };
-  LIFE.next = () => LIFE.steps().find(s => !s.done && !s.skip);
 
   // ================= 每天 =================
   { const nd = G.newDay; G.newDay = function () { nd(); try { LIFE.dayTick(); } catch (e) { console.error(e); } }; }
   LIFE.dayTick = function () {
     const s = SS(), l = LIFE.st(), d = G.dayNum(), p = l.partner;
+    // 存折利息：每天按余额结一次（零头攒着，凑够 1 块再进账）
+    { const I = L.interest; if (I && l.bank > 0) { const per = I.annual / I.yearDays; l.ifrac = (l.ifrac || 0) + Math.min(l.bank, I.capBank) * per; const whole = Math.floor(l.ifrac + 1e-9); if (whole >= 1) { l.ifrac -= whole; l.bank += whole; l.interestTotal = (l.interestTotal || 0) + whole; l.ledger = l.ledger || []; l.ledger.push({ day: d, kind: 'interest', amt: whole }); if (l.ledger.length > 40) l.ledger.shift(); l.lastInterest = { day: d, amt: whole }; G.log(`存折利息入账 ¥${whole}。`, 'good'); if (window.UI && UI.toast) { try { UI.toast(`存折利息 +¥${whole}`); } catch (e) { } } } } }
     // 好感会淡：很多天不联系
     if (p && p.state !== 'married' && d - (p.last || d) > 6) { p.aff = Math.max(p.state === 'dating' ? 35 : 15, p.aff - 1.5); }
     // 结婚后她/他每天往存折里存点
@@ -65,7 +70,7 @@
     if (l.pregnancy && d >= l.pregnancy.due) { l.pregnancy = null; const boy = Math.random() < .5; l.kid = { born: d, name: boy ? pick(['安安', '小宇', '乐乐']) : pick(['朵朵', '糯糯', '小满']), boy, enrolled: false, feeUntil: 0 }; G.change({ mental: 20 }); G.log(`${p.name}生下了孩子，是个${boy ? '男孩' : '女孩'}，取名${l.kid.name}。`, 'good'); G.addAlbum({ id: 'kid', kind: 'moment', title: '孩子出生了', caption: `${l.kid.name}，母子平安。` }); G.queue.push({ title: '孩子出生了', text: `产房外走廊的灯很亮。护士把孩子抱出来：“是个${boy ? '男孩' : '女孩'}，六斤四两。”你的手抖得接不住。孩子叫${l.kid.name}。`, eff: { mental: 20 } }); }
     // 冬天没厚衣服：每天早上提醒
     const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) { const n = (s.flags.coldNag = (s.flags.coldNag || 0) + 1); if (n <= 3 || n % 2 === 0) G.queue.push({ title: '❄ 太冷了', text: C.winterNag.morning + `（最便宜的棉服 ¥${LIFE.cheapWarm()}）` }); }
-    // 偶遇的时间窗
+    LIFE.emerge();
   };
   LIFE.cheapWarm = () => Math.min.apply(null, C.clothes.filter(c => c.warm).map(c => c.price));
 
@@ -94,7 +99,7 @@
   LIFE.gainFish = function () { const k = pick(C.fishKinds); const l = LIFE.st(); l.fish.push({ name: k.name, sell: ri(k.sell[0], k.sell[1]), hunger: k.hunger, mental: k.mental }); if (l.fish.length > 6) l.fish.shift(); return k; };
 
   // ================= 面板 =================
-  const ACTS = ['bath', 'bankbook', 'life', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay'];
+  const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay'];
   LIFE.has = k => ACTS.includes(k);
   const ICON = { bath: '🛁', bankbook: '📒', life: '🌱', fishsell: '💴', fishcook: '🍲', fishgive: '🎁', partner: '💞', hallwed: '💒', hallpeek: '👀', hallphoto: '📸', salesview: '🏘️', salespay: '🧾', salespeek: '🪟', kinderenroll: '📝', kinderpick: '🎒', kinderfee: '🧾', kinderpeek: '🧸', homecook: '🍳', homefish: '🐟', homebaby: '👶', homechat: '💬', homestay: '🏡' };
   { const ai = UI.actIcon; UI.actIcon = id => ICON[id.split(':')[0]] || ai(id); }
@@ -104,9 +109,9 @@
     // 冬天没厚衣服：横幅一直挂着
     { const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) top += `<div class="cold-banner"><b>🥶</b><span>${C.winterNag.banner.replace('{p}', LIFE.cheapWarm())}</span>${loc !== 'clothes' ? '<button class="btn sm" data-golife="clothes">去服装店</button>' : ''}</div>`; }
     if (loc === 'bath' && open) {
-      C.bath.items.forEach(it => A2.push(btn('bath:' + it.id, it.name, `¥${it.price} · ${it.minutes} 分钟 · 干净+${it.clean >= 100 ? '洗透' : it.clean} · 体力+${it.stamina} · 精神+${it.mental}${it.clear ? ' · 解酸痛' : ''}`, it.id === 'rub' ? 'gold' : '')));
+      C.bath.items.forEach(it => A2.push(btn('bath:' + it.id, it.name, `¥${it.price} · ${it.minutes} 分钟 · 体面+${it.dec} · 体力+${it.stamina} · 精神+${it.mental}${it.clear ? ' · 解酸痛' : ''}`, it.id === 'rub' ? 'gold' : '')));
       if (G.season() && G.season().id === 'winter') html += `<p class="muted">${C.bath.winterBonus.text}</p>`;
-      html += `<p class="muted tiny">身上现在干净度 ${Math.round(S.stats.clean)}。洗干净了，体面也跟着涨。</p>`;
+      html += `<p class="muted tiny">现在体面 ${G.decency()}。洗完体面会涨——能涨到多高，还要看身上穿的衣服。</p>`;
     }
     if (loc === 'bank') A2.push(btn('bankbook', '存折：存钱 / 取钱', `存折里 ¥${l.bank} · 放在存折里小偷偷不走`, 'gold'));
     if (loc === 'food') { if (l.fish.length) { A2.push(btn('fishcook', '把鱼拿给后厨炖了', `¥${C.fishUse.cook.price} 加工费 · 手里有 ${l.fish.length} 条`)); A2.push(btn('fishsell', '把鱼卖给饭馆老板', `按条收 · 约 ¥${l.fish[0].sell} 一条`)); } }
@@ -114,10 +119,10 @@
     if (loc === 'sales' && open) {
       A2.push(btn('salesview', l.home ? '看看我的房子 / 还款' : '看楼盘', l.home ? `${l.home.name} · 已还 ¥${l.home.paidTotal || 0}` : `三种户型 · 首付三成 · 存折 ¥${l.bank}`, 'gold'));
       A2.push(btn('salespeek', '趴在沙盘前看一会儿', '15 分钟 · 心里有个盼头'));
-      html += `<p class="muted">首付要从<b>存折</b>里出，口袋里的现金不算。先去银行存钱。</p>`;
+      html += `<p class="muted">首付要从<b>存折</b>里出，口袋里的现金不算。</p>`;
     }
     if (loc === 'hall') {
-      if (open) { A2.push(btn('hallwed', P && P.state === 'married' ? '我们的婚礼办过了' : '订日子办婚礼', P && P.state === 'dating' ? `好感 ${Math.round(P.aff)} · 彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price} 起` : '先得有个对象', 'gold')); A2.push(btn('hallpeek', '在场地里转转', '15 分钟')); }
+      if (open) { A2.push(btn('hallwed', P && P.state === 'married' ? '我们的婚礼办过了' : '订日子办婚礼', P && P.state === 'dating' ? `彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price} 起` : '红幕布还挂着', 'gold')); A2.push(btn('hallpeek', '在场地里转转', '15 分钟')); }
       if (P && P.state === 'married') A2.push(btn('hallphoto', '去拍张合影', '¥60 · 精神+4'));
     }
     if (loc === 'kinder' && open) {
@@ -130,7 +135,7 @@
       A2.push(btn('homecook', '做顿家常饭', '¥10 · 一小时 · 饱腹+55 · 精神+3'));
       if (l.fish.length) A2.push(btn('homefish', '把鱼炖了', '免费 · 饱腹+46 · 精神+5'));
       if (P && P.state === 'married') A2.push(btn('homechat', `跟${P.name}说说话`, '30 分钟 · 精神+6'));
-      if (P && P.state === 'married' && !l.kid && !l.pregnancy) A2.push(btn('homebaby', '商量要个孩子', LIFE.kidsOk() ? `${L.babyDays} 天后出生 · 以后每天开销 ¥${L.kidDaily}` : '这个年纪，孩子的事不用想了', LIFE.kidsOk() ? '' : 'dim'));
+      if (P && P.state === 'married' && S.flags.babyTalk && LIFE.kidsOk() && !l.kid && !l.pregnancy) A2.push(btn('homebaby', '商量要个孩子', `${L.babyDays} 天后出生 · 以后每天开销 ¥${L.kidDaily}`));
       if (l.pregnancy) html += `<p class="muted">${P.name}怀着孩子，还有 ${Math.max(0, l.pregnancy.due - G.dayNum())} 天。</p>`;
       if (l.home && l.home.arrears > 0) html += `<div class="window warnw">月供还差 ¥${l.home.arrears} 没交上，存折里钱不够。</div>`;
       const end = LIFE.endChoice(); if (end) A2.push(btn('homestay', '就这样安稳地过下去', `结局：${C.lifeEndings[end].title}`, 'gold'));
@@ -191,7 +196,7 @@
           const g = gifts[gi]; if (!g) return; S.money -= g.price; p.gifts[g.id] = (p.gifts[g.id] || 0) + 1; await LIFE.pAct(p, { min: 10, aff: g.aff, mental: 3, lines: [`${LIFE.partnerWord()}接过${g.name.split('（')[0]}，翻来覆去看了好几遍，没说话，嘴角翘了起来。`], title: '送礼', noTime: false });
         }, lim);
         if (p.state === 'met') add(`说出口：想跟${LIFE.partnerWord()}好好处处`, async () => { await LIFE.confess(p); }, false);
-        if (p.state === 'dating') add('谈谈以后的事（婚礼）', async () => { await UI.modal({ title: '以后', bg: A.IMG.place('hall'), html: LIFE.card(p, 'smile', `<p>${C.partnerLines.proposeOk}</p>`) + `<p class="muted">要办婚礼，得去<b>幸福礼堂</b>订日子：彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price}～${L.weddings[2].price}。好感要到 70 以上（现在 ${Math.round(p.aff)}）。${LIFE.canMarry() ? '' : `<br>你们现在年纪还没到领证的时候。`}</p>` }); }, false);
+        if (p.state === 'dating' && S.flags.hallOpen) add('谈谈以后的事（婚礼）', async () => { await UI.modal({ title: '以后', bg: A.IMG.place('hall'), html: LIFE.card(p, 'smile', `<p>${C.partnerLines.proposeOk}</p>`) + `<p class="muted">要办婚礼，得去<b>幸福礼堂</b>订日子：彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price}～${L.weddings[2].price}。好感要到 70 以上（现在 ${Math.round(p.aff)}）。${LIFE.canMarry() ? '' : `<br>你们现在年纪还没到领证的时候。`}</p>` }); }, false);
         if (marry) add('一起坐一会儿（30 分钟）', async () => { await LIFE.pAct(p, { min: 30, aff: 1, mental: 6, lines: ['你们没说几句话，她把头靠在你肩上。屋里很安静。', '电视开着没人看。她给你剥了个橘子。', '“今天累不累？”“还行。”就这么两句，也让人心里踏实。'], title: '一起坐会儿' }); }, false);
         add('先回去了', null);
         const i = await UI.modal({ title: LIFE.title() + ' · ' + p.name, wide: true, bg: A.placeImg(loc, G.hourF()), html: `${LIFE.card(p, p.aff >= 50 ? 'smile' : 'neutral', `<p class="hearts">好感 <b>${hearts}</b> ${Math.round(p.aff)}</p>`)}<p class="muted">${lim ? `今天已经聊了好几回，让${LIFE.partnerWord()}歇歇。` : `${p.job}，${p.home}。`}</p>`, buttons: opts });
@@ -206,6 +211,7 @@
     const line = Array.isArray(o.lines) ? o.lines[(p.talks++) % o.lines.length] : o.lines;
     await UI.modal({ title: o.title, bg: A.placeImg(S.loc, G.hourF()), html: `${LIFE.card(p, 'smile')}<p>${line}</p><p class="eff"><span class="up">好感 +${Math.round(p.aff) - before}</span></p>${eff({ mental: o.mental, hunger: o.hunger, stamina: o.stamina })}${o.dish ? `<div class="food-preview"><div class="fp-art">${A.dish(o.dish)}</div></div>` : ''}`, buttons: [{ text: '嗯' }] });
     G.log(`和${p.name}${o.title}。`, 'good'); if (p.state === 'dating' && p.aff >= 70 && !p.say70) { p.say70 = 1; G.log(`你开始认真想：要不要跟${p.name}办场婚礼。`, 'good'); }
+    LIFE.emerge();
   };
   LIFE.confess = async function (p) {
     const S = SS(); G.advance(15);
@@ -286,25 +292,15 @@
     return UI.act(async () => {
       const S = SS(), l = LIFE.st();
       await UI.modal({ title: '存折', bg: A.placeImg('bank', G.hourF()), html: '<div id="bk"></div>', buttons: [{ text: '好了' }], onShow: (m, close) => {
-        const draw = () => { m.querySelector('#bk').innerHTML = `<p class="bk-big">存折 <b>¥${l.bank}</b> <small>口袋里 ¥${S.money}</small></p><p class="muted">钱放进存折，小偷偷不走；买房首付、婚礼、月供都从这里出。${l.bank < L.bankGoal1 ? `目标先攒到 ¥${L.bankGoal1}。` : ''}</p>
+        const draw = () => { m.querySelector('#bk').innerHTML = `<p class="bk-big">存折 <b>¥${l.bank}</b> <small>口袋里 ¥${S.money}</small></p><p class="muted">钱放进存折，小偷偷不走；买房首付、婚礼、月供都从这里出。</p>
+          <p class="bk-int">利息：年利率 ${Math.round(L.interest.annual * 100)}%（游戏里一年 = 四季 ${L.interest.yearDays} 天），每天按存折余额入账。累计已得 <b>¥${l.interestTotal || 0}</b>，按现在的余额，每天约 <b>¥${(Math.min(l.bank, L.interest.capBank) * L.interest.annual / L.interest.yearDays).toFixed(2)}</b>。</p>
+          <ul class="bk-ledger">${(l.ledger || []).slice(-6).reverse().map(x => `<li><span>第 ${x.day} 天</span> ${x.kind === 'interest' ? '利息' : x.kind === 'in' ? '存入' : '取出'} <b class="${x.kind === 'out' ? 'down' : 'up'}">${x.kind === 'out' ? '-' : '+'}¥${x.amt}</b></li>`).join('') || '<li class="muted">还没有明细</li>'}</ul>
           <div class="bk-row">${[100, 500, 1000].map(n => `<button class="btn sm" data-in="${n}" ${S.money < n ? 'disabled' : ''}>存 ¥${n}</button>`).join('')}<button class="btn sm" data-in="all" ${S.money < 1 ? 'disabled' : ''}>全存进去</button></div>
           <div class="bk-row">${[100, 500, 1000].map(n => `<button class="btn sm ghost" data-out="${n}" ${l.bank < n ? 'disabled' : ''}>取 ¥${n}</button>`).join('')}<button class="btn sm ghost" data-out="all" ${l.bank < 1 ? 'disabled' : ''}>全取出来</button></div>`;
-          m.querySelectorAll('[data-in]').forEach(b => b.onclick = () => { const n = b.dataset.in === 'all' ? S.money : +b.dataset.in; if (n <= 0 || S.money < n) return; S.money -= n; l.bank += n; FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
-          m.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { const n = b.dataset.out === 'all' ? l.bank : +b.dataset.out; if (n <= 0 || l.bank < n) return; l.bank -= n; S.money += n; FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
+          m.querySelectorAll('[data-in]').forEach(b => b.onclick = () => { const n = b.dataset.in === 'all' ? S.money : +b.dataset.in; if (n <= 0 || S.money < n) return; S.money -= n; l.bank += n; (l.ledger = l.ledger || []).push({ day: G.dayNum(), kind: 'in', amt: n }); FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
+          m.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { const n = b.dataset.out === 'all' ? l.bank : +b.dataset.out; if (n <= 0 || l.bank < n) return; l.bank -= n; S.money += n; (l.ledger = l.ledger || []).push({ day: G.dayNum(), kind: 'out', amt: n }); FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
         }; draw(); } });
     });
-  };
-
-  // ================= 人生面板 =================
-  LIFE.modal = async function () {
-    const S = SS(), l = LIFE.st(), p = l.partner, st = LIFE.steps(), nx = LIFE.next();
-    const rows = st.map(x => `<li class="ls ${x.done ? 'done' : x.skip ? 'skip' : x === nx ? 'now' : ''}"><i>${x.done ? '✔' : x.icon}</i><div><b>${x.name}</b><small>${x.note || ''}</small>${x === nx ? `<p>${x.hint}</p>` : ''}</div></li>`).join('');
-    const go = { save: 'bank', meet: 'riverside', love: p && p.state !== 'married' ? 'riverside' : 'riverside', wed: 'hall', home: 'sales', kid: 'home', school: 'kinder' };
-    const info = [`${G.identity().name} · ${G.age()} 岁`, `存折 ¥${l.bank}`, `口袋 ¥${S.money}`];
-    if (l.home) info.push(`房贷 月供 ¥${l.home.monthly}${l.home.arrears > 0 ? `（欠 ¥${l.home.arrears}）` : ''}`);
-    const buttons = [{ text: '关上' }]; let target = null; if (nx && go[nx.id]) { const P = C.places.find(x => x.id === go[nx.id]); if (P && G.isUnlocked('place', P) && SS().loc !== P.id) { target = P.id; buttons.push({ text: `去「${A.placeShort(P.id)}」`, cls: 'gold' }); } }
-    const r = await UI.modal({ title: '人生 · 一步一步往上走', wide: true, cls: 'life-modal', html: `<p class="life-info">${info.join(' · ')}</p>${p ? `<div class="life-partner">${LIFE.card(p, p.aff >= 50 ? 'smile' : 'neutral', `<p class="hearts">好感 ${Math.round(p.aff)}</p>`)}</div>` : ''}<ul class="life-steps">${rows}</ul><p class="muted tiny">不用着急。这是一条往上走的路，不是限时任务；先吃饱、睡好、攒下钱。</p>`, buttons });
-    if (r === 1 && target) UI.go(target);
   };
 
   // ================= 四季环 =================
@@ -332,7 +328,7 @@
     const outdoor = S.view !== 'place' || (C.seasons.outdoorPlaces || []).includes(S.loc); const old = sc.querySelector('.sfx'); if (old) old.remove();
     if (outdoor && !(matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches)) sc.insertAdjacentHTML('beforeend', LIFE.fxHtml(sea.id));
   };
-  { const r0 = UI.render; UI.render = function () { r0.apply(this, arguments); try { LIFE.seasonFx(); const lb = $('#hud-life'); if (lb) lb.onclick = () => LIFE.modal(); const sc = $('#hud-season'); if (sc) sc.onclick = () => LIFE.seasonModal(); document.querySelectorAll('[data-golife]').forEach(b => b.onclick = () => UI.go(b.dataset.golife)); } catch (e) { console.error(e); } }; }
+  { const r0 = UI.render; UI.render = function () { r0.apply(this, arguments); try { LIFE.seasonFx(); const sc = $('#hud-season'); if (sc) sc.onclick = () => LIFE.seasonModal(); document.querySelectorAll('[data-golife]').forEach(b => b.onclick = () => UI.go(b.dataset.golife)); } catch (e) { console.error(e); } }; }
 
   // ================= 人物热点 / 点击 =================
   { const pp = UI.people; UI.people = function () { const out = pp(); const l = LIFE.st(); if (l && l.partner && LIFE.partnerHere(SS().loc) && SS().view === 'place') out.unshift({ kind: 'partner', key: 'p', name: l.partner.name, look: l.partner.look, sub: LIFE.title() + ' · 过去说说话', tip: `${l.partner.name}在这儿` }); return out.slice(0, 3); }; }
@@ -341,14 +337,13 @@
   // ================= 行动分发 =================
   LIFE.doAct = function (k, v) {
     const S = SS(), l = LIFE.st();
-    if (k === 'life') return LIFE.modal();
     if (k === 'bankbook') return LIFE.bankFlow();
     if (k === 'partner') return LIFE.partnerMenu();
     if (k === 'bath') return UI.act(async () => {
       const it = C.bath.items.find(x => x.id === v); if (!it) return; if (S.money < it.price) return UI.toast('钱不够。', 'bad');
-      S.money -= it.price; const win = G.season() && G.season().id === 'winter'; const e = { clean: it.clean, stamina: it.stamina + (win ? C.bath.winterBonus.stamina : 0), mental: it.mental + (win ? C.bath.winterBonus.mental : 0) };
+      S.money -= it.price; const win = G.season() && G.season().id === 'winter'; const dec0 = G.decency(); const e = { clean: it.clean, stamina: it.stamina + (win ? C.bath.winterBonus.stamina : 0), mental: it.mental + (win ? C.bath.winterBonus.mental : 0) };
       G.advance(it.minutes); G.change(e); if (it.clear) S.debuffs = S.debuffs.filter(x => x.id !== 'sore'); G.log(`在澡堂${it.name}。`);
-      if (window.FX) await FX.micro('bath'); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff({ clean: Math.min(it.clean, 100), stamina: e.stamina, mental: e.mental, money: -it.price })}` });
+      if (window.FX) await FX.micro('bath'); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff({ decency: G.decency() - dec0, stamina: e.stamina, mental: e.mental, money: -it.price })}` });
       const n = G.pickNpc('bath'); if (n && Math.random() < .3) await UI.talk(n, '澡堂里');
     });
     if (k === 'fish') return UI.act(async () => {

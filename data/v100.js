@@ -10,17 +10,17 @@ window.CONFIG = window.CONFIG || {};
       desc: "红塑料凳，大池子，雾气糊满窗。几块钱就能把一身灰洗下去——也是这一带少有的、人和人不用端着的地方。",
       locked: true, hidden: true, unlock: { minDay: 2 }, unlockHint: "第2天开放" },
     { id: "sales", name: "安居里售楼处", sign: "新盘 · 首付三成 · 看房", open: "09:00", close: "18:00",
-      desc: "玻璃房子外挂着红白气球，沙盘上的小楼亮着一排灯。你不一定买得起，但看看总是不要钱的。",
-      locked: true, hidden: true, unlock: { minDay: 8 }, unlockHint: "第8天开放" },
+      desc: "玻璃房子外挂着红白气球，沙盘上的小楼亮着一排灯。你不一定买得起，但看看总是不要钱的。"
+    },
     { id: "hall", name: "幸福礼堂", sign: "婚宴 · 喜庆 · 摆酒", open: "08:00", close: "20:00",
       desc: "红桌布、红灯笼、红幕布。管事的大姐说，一年到头，这里最忙的就是这一排周末。",
-      locked: true, hidden: true, unlock: { minDay: 10 }, unlockHint: "第10天开放" },
+      locked: true, hidden: true, unlock: { flag: "hallOpen" } },
     { id: "kinder", name: "向阳幼儿园", sign: "幼儿园 · 小班 · 中班", open: "07:30", close: "17:30",
       desc: "墙上画着熊猫和兔子。栏杆里的滑梯一直有人排队，栏杆外的大人一直有人站着。",
-      locked: true, hidden: true, unlock: { minDay: 14 }, unlockHint: "第14天开放" },
+      locked: true, hidden: true, unlock: { flag: "kinderOpen" } },
     { id: "home", name: "我的小家", sign: "自己的家 · 有一把钥匙", open: "00:00", close: "24:00",
       desc: "不大，一张沙发，一个小冰箱。钥匙在自己兜里，门一关，就是自己的。",
-      locked: true, hidden: true, unlock: { flag: "ownsHome" }, unlockHint: "买了房才有" }
+      locked: true, hidden: true, unlock: { flag: "ownsHome" } }
   );
   C.lodging.push({ id: "home", name: "自己家的床", where: "home", price: 0, recover: { stamina: 15, mental: 9 }, stealRisk: 0, canPick: false,
     note: "不花钱，没人翻包，睡得最踏实" });
@@ -58,12 +58,16 @@ window.CONFIG = window.CONFIG || {};
   // ---------- 澡堂 ----------
   C.bath = {
     items: [
-      { id: "wash", name: "冲个淋浴", price: 6, minutes: 30, clean: 70, stamina: 4, mental: 3, text: "喷头不太热，水压倒挺足。你把头发搓了两遍，泡沫顺着肩膀流下去，灰色的。" },
-      { id: "soak", name: "泡一池热水", price: 15, minutes: 60, clean: 100, stamina: 9, mental: 7, clear: true, text: "水烫得你龇牙，泡了两分钟，腰上的酸劲儿一点点松开。池子边几个老头在慢悠悠聊天，没人看你。" },
-      { id: "rub", name: "搓澡 + 泡澡", price: 35, minutes: 90, clean: 100, stamina: 14, mental: 11, clear: true, text: "搓澡师傅一巴掌下去，一条灰卷从胳膊上滚下来，他笑：“有一阵子没洗了吧？”你也笑。搓完整个人轻了一圈。" }
+      { id: "wash", name: "冲个淋浴", price: 6, minutes: 30, dec: 20, stamina: 4, mental: 3, text: "喷头不太热，水压倒挺足。你把头发搓了两遍，泡沫顺着肩膀流下去，灰色的。" },
+      { id: "soak", name: "泡一池热水", price: 15, minutes: 60, dec: 32, stamina: 9, mental: 7, clear: true, text: "水烫得你龇牙，泡了两分钟，腰上的酸劲儿一点点松开。池子边几个老头在慢悠悠聊天，没人看你。" },
+      { id: "rub", name: "搓澡 + 泡澡", price: 35, minutes: 90, dec: 45, stamina: 14, mental: 11, clear: true, text: "搓澡师傅一巴掌下去，一条灰卷从胳膊上滚下来，他笑：“有一阵子没洗了吧？”你也笑。搓完整个人轻了一圈。" }
     ],
+    decPerClean: 0.45,
     winterBonus: { stamina: 3, mental: 3, text: "大冬天，热水一冲，整个人才算真的活过来。" }
   };
+
+  // v1.0.1：澡堂只说「体面」。内部的 clean 由 dec 换算（体面 = 衣服 + 干净×0.45），保证洗完体面真的涨 dec
+  C.bath.items.forEach(it => { it.clean = Math.min(100, Math.round(it.dec / 0.45)); });
 
   // ---------- 鱼 ----------
   C.fishKinds = [
@@ -79,7 +83,7 @@ window.CONFIG = window.CONFIG || {};
     gift: { aff: 8, text: "对方愣了一下，接过袋子往里看了一眼，笑了：“哟，这么大一条！回头我给你留个好位置。”" }
   };
 
-  // ---------- 人生阶梯 ----------
+  // ---------- 人生（不是清单：全靠遇见、好感、事件自然冒出来）----------
   C.life = {
     ageYearDays: 365,
     minMarryAge: { m: 22, f: 20 }, kidMaxAge: { m: 52, f: 42 },
@@ -97,6 +101,10 @@ window.CONFIG = window.CONFIG || {};
       { id: "est2", name: "安居里两居", area: 62, tag: "新小区 · 有绿化", total: 46000, monthly: 800, text: "客厅能放下一张饭桌，卧室留一个小房间，将来给孩子。" },
       { id: "tower3", name: "带电梯的新楼", area: 88, tag: "高层 · 电梯 · 带车位", total: 82000, monthly: 1400, text: "站在阳台上看得到河。你想了想，没敢往下看价格那一行。" }
     ],
+    // v1.0.1 存折利息：年利率 3%。游戏里一年 = 四季 × 每季 10 天 = 40 天（日历年 365 天太长，玩家一局根本看不见），
+    // 所以按“游戏年”折算：每天 3%/40 = 0.075%（存 ¥10000 每天约 ¥7.5，一个季度 ≈ ¥75）。
+    // 不可刷：只按存折余额算、不复利到口袋、每天只结一次、余额超过 capBank 的部分不再计息；比起日薪 150~250，它是“踏实感”不是“财路”。
+    interest: { annual: 0.03, yearDays: 40, capBank: 50000 },
     partnerDaily: 40, kidDaily: 12, babyDays: 12,
     kinderAge: 15, kinderFee: 300, kinderDays: 10,
     gifts: [
@@ -106,15 +114,6 @@ window.CONFIG = window.CONFIG || {};
       { id: "radio", name: "一个小收音机", price: 180, aff: 18, once: true }
     ]
   };
-  C.lifeSteps = [
-    { id: "save", icon: "📒", name: "有点积蓄", hint: "先把钱存进银行存折，攒到 ¥{n}。存折里的钱小偷偷不走。" },
-    { id: "meet", icon: "👀", name: "遇见一个人", hint: "傍晚去河边走走，去饭馆吃面，去澡堂洗个澡——会碰上的。" },
-    { id: "love", icon: "💞", name: "在一起", hint: "聊天、请吃饭、送点小东西。好感到 50，再开口。" },
-    { id: "wed", icon: "💒", name: "办婚礼", hint: "去幸福礼堂订日子。要有彩礼钱和酒席钱，好感 70 以上。" },
-    { id: "home", icon: "🏠", name: "有个自己的家", hint: "去安居里售楼处看房，首付三成从存折里出。" },
-    { id: "kid", icon: "👶", name: "有个孩子", hint: "成了家以后，在家里跟对方商量。孩子要花钱，也要花时间。" },
-    { id: "school", icon: "🧸", name: "孩子上幼儿园", hint: "孩子满 15 天，去向阳幼儿园报名，每月交学费。" }
-  ];
   C.lifeEndings = {
     win_home: { title: "有了自己的家", text: "你把门关上，把灯打开。屋子不大，可是每一盏灯都是你的。你们俩在沙发上坐了很久，谁都没说话，窗外有人在放不知道哪家的喜事爆竹。日子，往上走了一格。" },
     win_family: { title: "一家人", text: "接孩子的路上，夕阳把三个人的影子拉得很长。孩子骑在你脖子上，手里攥着一朵小红花。你突然想起刚来酒仙桥那天，在路口站着的自己。那个人，现在也有人在家等了。" },
@@ -191,7 +190,11 @@ window.CONFIG = window.CONFIG || {};
 
   // ---------- 管饭：每份活真的有一顿 ----------
   // at = 在这份活的第几成时开饭；tier = 好/凑合/差；hunger = 吃下去补多少饱腹
-  const D = (at, tier, dish, name, hunger, mental, flavor, text) => ({ at, tier, dish, name, hunger, mental, flavor, text });
+  // v1.0.1：这一顿吃下去要“顶用”——补得多、开饭晚一点（吃完后面少饿几个钟头），
+  // 并且吃过饭的一班干完时，饱腹至少回到 floor（按好/凑合/差）
+  const TIER = { "好": { hunger: 64, floor: 54 }, "凑合": { hunger: 54, floor: 44 }, "差": { hunger: 44, floor: 36 } };
+  const D = (at, tier, dish, name, hunger, mental, flavor, text) => ({ at: Math.max(at, 0.55), tier, dish, name, hunger: TIER[tier].hunger, floor: TIER[tier].floor, mental, flavor, text });
+  { const fj = C.jobs.find(x => x.id === "food"); if (fj) { fj.meal = true; fj.shout = fj.shout.replace("两百，", "两百，管一顿夜班饭，"); } }
   C.jobMeals = {
     courier: [D(0.5, "凑合", "workbox", "分拣站盒饭", 42, -1, "米饭压得实实的，菜只有两片白菜叶。你蹲在传送带边上，三口两口就扒完了。", "不到十分钟，铃一响，又得起身。")],
     guard: [D(0.5, "凑合", "workbox", "岗亭盒饭", 40, 0, "盒饭是小区物业送来的，凉了。你就着岗亭里的小太阳，吃得还挺香。", "")],
@@ -201,6 +204,7 @@ window.CONFIG = window.CONFIG || {};
     green: [D(0.5, "差", "mantou", "冷馒头 + 咸菜", 30, -3, "工头从车斗里扔出一袋馒头，凉的，咸菜是塑料袋装的。你坐在草皮上，一口一口啃。", "没有汤，噎得慌，你到处找水。")],
     waiter: [D(0.55, "好", "canteen", "后厨员工餐", 50, 3, "客人没动过的红烧肉，被厨师长端给了服务员们。大家排队分着吃，说笑着，仿佛不是在干活。", "")],
     dishwash: [D(0.5, "好", "stew", "厨房剩下的炖菜", 52, 2, "师傅把锅底舀给你：“刚出锅的，别嫌弃。”你嘴上说不饿，筷子却先动了。", "")],
+    food: [D(0.55, "好", "canteen", "工厂夜班饭", 0, 3, "后半夜，食堂阿姨推出一大盆米饭和炖菜。穿着防尘服的人排成一队，勺子磕着铁盆叮当响。", "一碗热饭下肚，手指才又灵活起来。")],
     antigen: [D(0.45, "凑合", "boxmeal", "厂里的夜宵盒饭", 44, 0, "后半夜，食堂阿姨推出一车盒饭。热的，吃得人鼻子发酸。", "")]
   };
 })();
