@@ -821,9 +821,9 @@
       if (goAsk === 1) return;
       const r = G.tryHire(o);
       if (!r.ok) {
-        const why = { record: '因为你有案底', recordSoft: '因为你有案底', age: '嫌你岁数大', dirty: '嫌你衣服太脏、不体面', tired: '看你体力不行、站不稳', hungry: '看你饿得发昏', full: '人招满了' }[r.reason];
-        G.log(`${R.name}没要你（${why}）：“${r.line}”`, r.reason.startsWith('record') ? 'bad' : '');
-        await UI.modal({ title: '没要你', html: `<div class="talk"><div class="pt">${A.portrait(R.look, { mood: 'angry' })}</div><div><b>${R.name}</b><p>“${r.line}”</p><p class="why ${r.reason.startsWith('record') ? 'bad' : ''}">原因：${why}${r.reason === 'record' ? `（${j.name}要求没有案底）` : ''}</p></div></div>` });
+        const why = r.why || G.refuseWhy(r.reason);
+        G.log(`${R.name}没要你（${why}）：“${r.line}”`, String(r.reason).startsWith('record') ? 'bad' : '');
+        await UI.modal({ title: '没要你', html: `<div class="talk"><div class="pt">${A.portrait(R.look, { mood: 'angry' })}</div><div><b>${R.name}</b><p>“${r.line}”</p><p class="why ${String(r.reason).startsWith('record') ? 'bad' : ''}">原因：${why}${r.reason === 'record' ? `（${j.name}要求没有案底）` : ''}</p></div></div>` });
         return;
       }
       let wage = r.wage;

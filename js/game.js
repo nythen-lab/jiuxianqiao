@@ -388,7 +388,18 @@
     p = clamp(p, block ? 0 : lo, 0.97);
     return { p, pct: Math.round(p * 100), why, job: j, block };
   };
-  G.tryHire = function (o) {
+  // v1.0.1a：被拒绝的原因文字，每一种都有中文，拿不到就用兜底，绝不出现 undefined / null / NaN
+  const REFUSE_WHY = { record: '因为你有案底', recordSoft: '因为你有案底', age: '嫌你岁数大', dirty: '嫌你衣服太脏、不体面', tired: '看你体力不行、站不稳', hungry: '看你饿得发昏', full: '人招满了', empty: '赶到了才发现人早就够了，白跑一趟' };
+  const BADTXT = /undefined|null|NaN/;
+  G.REFUSE_REASONS = Object.keys(REFUSE_WHY);
+  G.refuseWhy = function (reason) { const t = REFUSE_WHY[reason]; return (typeof t === 'string' && t && !BADTXT.test(t)) ? t : '今天没看上你，说不上具体原因'; };
+  G.refuseSafe = function (r, j) {
+    r = r || {}; const reason = (typeof r.reason === 'string' && REFUSE_WHY[r.reason]) ? r.reason : 'full';
+    let line = r.line; if (typeof line !== 'string' || !line.trim() || BADTXT.test(line)) { const pool = (C.refuseLines && C.refuseLines[reason]) || (C.refuseLines && C.refuseLines.full) || []; line = String(pool.length ? pool[Math.floor(Math.random() * pool.length)] : '今天人够了，下次再来吧。').replace('{job}', (j && j.name) || '这活'); }
+    return Object.assign({}, r, { reason, line, why: G.refuseWhy(reason) });
+  };
+  G.tryHire = function (o) { const j = C.jobs.find(x => x.id === o.job); const r = G._tryHire(o); return r && r.ok === false ? G.refuseSafe(r, j) : r; };
+  G._tryHire = function (o) {
     const j = C.jobs.find(x => x.id === o.job), I = G.identity();
     G.advance(10);
     const fill = s => s.replace('{job}', j.name);
