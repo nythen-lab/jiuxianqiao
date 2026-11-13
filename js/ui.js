@@ -12,11 +12,14 @@
   // 游戏主界面是弹性布局，跟着逻辑宽高走；标题/选人/漫画/结局仍按 1280×800 设计，在舞台里居中再缩一次。
   function fit() {
     const iw = innerWidth, ih = innerHeight;
-    const s = Math.max(0.5, Math.min(1.25, Math.min(iw / 1200, ih / 760)));
+    // v1.0 手机竖屏：宽屏舞台缩到 0.3 倍没法看，竖屏改走一套单列布局
+    const portrait = iw < 800 && ih > iw * 1.12;
+    const s = portrait ? Math.max(0.7, Math.min(1.5, iw / 440)) : Math.max(0.5, Math.min(1.25, Math.min(iw / 1200, ih / 760)));
     const W = iw / s, H = ih / s, st = $('#stage');
+    st.classList.toggle('portrait', portrait); document.documentElement.classList.toggle('is-portrait', portrait);
     st.style.width = W + 'px'; st.style.height = H + 'px';
     st.style.transform = `scale(${s})`;
-    st.style.setProperty('--k', Math.min(W / 1280, H / 800, 1.15));
+    st.style.setProperty('--k', portrait ? 1 : Math.min(W / 1280, H / 800, 1.15));
     st.classList.toggle('narrow', W < 1320);
     st.dataset.lw = Math.round(W); st.dataset.lh = Math.round(H);
     UI.scale = s;
@@ -42,6 +45,7 @@
   UI.toast = function (t, cls) { const d = document.createElement('div'); d.className = 'toast ' + (cls || ''); d.textContent = t; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 3200); };
   async function flushQueue() { while (G.queue.length) { const q = G.queue.shift(); if (q.kind === 'goal' && window.FX) { await UI.modal({ title: q.title, cls: 'goal-modal' + (q.big ? ' big' : ''), wide: !!q.big, html: FX.goalCardHTML(q.big), buttons: [{ text: q.big ? '接着干' : '知道了' }] }); continue; } await UI.modal({ title: q.title, html: `<p>${q.text}</p>${effText(q.eff)}` }); } }
   function effText(e) { if (!e) return ''; const n = { stamina: '体力', mental: '精神', hunger: '饱腹', money: '钱', clean: '干净', rep: '口碑' }; const p = Object.keys(e).filter(k => n[k] && e[k]).map(k => `<span class="${e[k] > 0 ? 'up' : 'down'}">${n[k]} ${e[k] > 0 ? '+' : ''}${e[k]}</span>`); return p.length ? `<p class="eff">${p.join(' ')}</p>` : ''; }
+  UI.effText = effText;
 
   // ---------- 屏幕切换 ----------
   UI.show = id => { document.querySelectorAll('.screen').forEach(s => s.classList.toggle('on', s.id === id)); };
@@ -155,14 +159,15 @@
     const bar = (k, label, v, max, cls) => `<div class="stat ${cls}${lowOf[cls] ? ' low' : ''}" title="${label}"><span>${label}</span><div class="sbar"><i style="width:${Math.round(v / max * 100)}%"></i></div><b>${Math.round(v)}</b></div>`;
     const pr = G.goalProgress();
     $('#hud').innerHTML = `<button class="me" id="hud-me" title="人物卡（C）">${A.portrait(A.playerLook(), { bg: '#f2e6cf' })}</button>
-      <div class="clock"><div class="day">第 <b>${G.dayNum()}</b> 天${G.season ? `<span class="season-chip s-${G.season().id}" title="${G.season().tip}（这一季还剩 ${G.seasonDayLeft()} 天）">${G.season().icon}${G.season().name}</span>` : ''}</div>${window.FX ? FX.timeHTML() : `<div class="time"><span class="tclock">${G.clock()}</span><small>${G.phase()}</small></div>`}</div>
+      <div class="clock"><div class="dayrow"><div class="day">第 <b>${G.dayNum()}</b> 天</div>${G.season ? `<span class="season-chip s-${G.season().id}" id="hud-season" title="${G.season().tip}（这一季还剩 ${G.seasonDayLeft()} 天）· 点开看四季">${window.LIFE ? LIFE.seasonMini() : G.season().icon}${G.season().name}</span>` : ''}</div>${window.FX ? FX.timeHTML() : `<div class="time"><span class="tclock">${G.clock()}</span><small>${G.phase()}</small></div>`}</div>
       <div class="stats">${bar('stamina', '体力', S.stats.stamina, S.maxSta, 'sta')}${bar('mental', '精神', S.stats.mental, 100, 'men')}${bar('hunger', '饱腹', S.stats.hunger, 100, 'hun')}${bar('dec', '体面', G.decency(), 100, 'dec')}</div>
       <div class="money${S.money < T.moneyLow ? ' low' : ''}">¥ <b id="hud-money">${S.money}</b>${I.goal.type === 'send' ? `<small>${I.goal.debt ? '已还' : '已寄回'} ¥${S.sent}</small>` : ''}${G.owedTotal && G.owedTotal() ? `<small class="owed">被拖欠 ¥${G.owedTotal()}</small>` : ''}</div>
       <button class="btn sm send-btn${I.goal.type === 'send' ? ' gold' : ''}" id="hud-send" title="去银行自助厅转账">🏦 ${I.goal.debt ? '还债' : '寄钱'}</button>
       <div class="rec ${G.hasRecord() ? 'bad' : 'ok'}" id="hud-rec" title="案底状态">${G.hasRecord() ? `⚠ 有案底 ×${S.record.count}` : '✓ 无案底'}</div>
       <div class="goalmini" title="目标进度"><span>🎯 ${pr.text}</span><div class="sbar"><i style="width:${Math.round(Math.min(1, pr.pct) * 100)}%"></i></div></div>
       <button class="btn sm mute" id="hud-mute" title="静音">${(window.Music && Music.muted) ? '🔇' : '🔊'}</button>
-      <button class="btn sm album-btn" id="hud-album" title="相册">相册${(S.album && S.album.length) ? `<i>${S.album.length}</i>` : ''}</button>
+      <button class="btn sm life-btn" id="hud-life" title="人生：一步一步往上走">🌱 人生</button>
+      <button class="btn sm album-btn" id="hud-album" title="相册">相册${((S.album ? S.album.length : 0) - (S.albumSeen || 0)) > 0 ? `<i>${S.album.length - (S.albumSeen || 0)}</i>` : ''}</button>
       <div class="hbtns"><button class="btn sm" id="hud-save">存档</button><button class="btn sm" id="hud-load">读档</button><button class="btn sm" id="hud-menu">菜单</button></div>`;
     $('#hud-me').onclick = UI.sheet; $('#hud-rec').onclick = UI.sheet;
     $('#hud-mute').onclick = () => { if (window.Music) { Music.start(); Music.toggleMute(); UI.render(); } };
@@ -175,7 +180,7 @@
     wb.innerHTML = cs.map(c => `<div class="wchip ${c.lv}" data-w="${c.id}" title="${c.tip}"><span class="wi">${c.icon}</span><b>${c.label}</b><small>${c.tip}</small></div>`).join('');
     $('#hud-save').onclick = () => { G.saveSlot(); UI.toast('已存到手动存档'); };
     $('#hud-load').onclick = () => { if (G.loadSlot()) { UI.toast('已读档'); UI.render(); } else UI.toast('还没有手动存档'); };
-    $('#hud-menu').onclick = async () => { const r = await UI.modal({ title: '菜单', html: '<p>进度一直在自动保存。</p>', buttons: [{ text: '继续玩' }, { text: '打开相册' }, { text: '回到标题' }, { text: '重新开始（清除进度）', cls: 'danger' }] }); if (r === 1) UI.album(); if (r === 2) UI.title(); if (r === 3) { localStorage.removeItem('jxq_auto_v1'); UI.select(); } };
+    $('#hud-menu').onclick = async () => { const r = await UI.modal({ title: '菜单', html: '<p>进度一直在自动保存。</p>', buttons: [{ text: '继续玩' }, { text: '打开相册' }, { text: '回到标题' }, { text: '重新开始（清除进度）', cls: 'danger' }, { text: '手动存档', cls: 'ghost' }, { text: '读取手动存档', cls: 'ghost' }] }); if (r === 1) UI.album(); if (r === 2) UI.title(); if (r === 3) { localStorage.removeItem('jxq_auto_v1'); UI.select(); } if (r === 4) { G.saveSlot(); UI.toast('已存到手动存档'); } if (r === 5) { if (G.loadSlot()) { UI.toast('已读档'); UI.render(); } else UI.toast('还没有手动存档'); } };
     const mapView = S.view !== 'place';
     $('#game').classList.toggle('mapview', mapView);
     if (mapView) {
@@ -285,7 +290,7 @@
     const S = G.S(); if (loc === S.loc) { S.view = 'place'; return UI.render(); }
     const LP = C.places.find(p => p.id === loc); if (!LP || (G.placeOpen && !G.placeOpen(LP))) return UI.toast('还没开放' + (LP && LP.unlockHint ? '：' + LP.unlockHint : ''), 'bad');
     const base = G.travelMin ? G.travelMin(S.loc, loc) : 10;
-    act(async () => { const m = Math.round(base * G.slowMult()); G.advance(m); if (m > base) UI.toast(`腿沉，走了 ${m} 分钟`); else UI.toast(`走了 ${m} 分钟`); S.loc = loc; S.view = 'place'; if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G.hourF() >= 16 && G.hourF() < 20) G.fireEvents('corner'); });
+    act(async () => { const m = Math.round(base * G.slowMult()); G.advance(m); if (m > base) UI.toast(`腿沉，走了 ${m} 分钟`); else UI.toast(`走了 ${m} 分钟`); S.loc = loc; S.view = 'place'; if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G.hourF() >= 16 && G.hourF() < 20) G.fireEvents('corner'); if (window.LIFE) await LIFE.onArrive(loc); });
   };
 
   // ---------- 地点面板 ----------
@@ -305,7 +310,7 @@
         h += '<div class="offers">';
         offers.forEach(o => { const j = C.jobs.find(x => x.id === o.job), R = C.recruiters[o.recruiter]; const ref = S.refused[o.oid];
           const hi = G.hireInfo(o); const sk = j.skill ? `${C.skillNames[j.skill]} Lv${S.skills[j.skill] || 0}` : '';
-          const meta = [`${j.start}–${j.end}`, j.meal ? '管饭' : '', `车 ${G.clock(o.gone)} 前走`, sk ? `<span class="skt">用到 ${sk}</span>` : '', j.needClean ? '<span class="need">要求无案底</span>' : ''].filter(Boolean).map(x => `<span>${x}</span>`).join('');
+          const meta = [`${j.start}–${j.end}`, j.meal ? ('管饭' + ((C.jobMeals && C.jobMeals[j.id]) ? ' · ' + C.jobMeals[j.id].map(m => m.tier).join('+') : '')) : '', `车 ${G.clock(o.gone)} 前走`, sk ? `<span class="skt">用到 ${sk}</span>` : '', j.needClean ? '<span class="need">要求无案底</span>' : ''].filter(Boolean).map(x => `<span>${x}</span>`).join('');
           h += `<div class="offer ${ref ? 'ref' : ''}"><div class="pt s">${A.portrait(R.look)}</div>
             <div class="oinfo"><div class="o-top"><b class="o-job">${j.name}</b><span class="o-who">${R.name}</span><span class="o-pay">¥${o.wage}${o.cut ? `<small>中介抽 ¥${o.cut}</small>` : ''}</span></div>
               <div class="o-quote" title="${R.name}：“${j.shout}”">“${j.shout}”</div><div class="o-meta">${meta}</div></div>
@@ -337,7 +342,7 @@
       if (G.inHours(R.karaoke.from, R.karaoke.to)) A2.push(btn('karaoke', R.karaoke.name, `¥${R.karaoke.price} · 20 分钟 · 精神+${R.karaoke.mental}`));
       A2.push(btn('fish', R.fish.name, `1 小时 · 免费 · 精神+${R.fish.mental} · 可能碰到熟人`));
     }
-    if (S.loc === 'inn' || S.loc === 'netcafe' || S.loc === 'dormtower') {
+    if (S.loc === 'inn' || S.loc === 'netcafe' || S.loc === 'dormtower' || S.loc === 'home') {
       if (G.bedValid()) { const L = C.lodging.find(l => l.id === S.bed.id); h += `<div class="window">已付钱：${L.name}（到 ${G.clock(S.bed.until)}）</div>`; }
       if (S.loc === 'netcafe') { const g = C.netcafe.game; A2.push(btn('netgame', g.name, `¥${g.price} · 2 小时 · 精神+${g.mental} · 体力${g.stamina} · 饱腹${g.hunger}`)); }
       if (S.loc === 'inn' && C.room) {
@@ -350,6 +355,7 @@
     if (S.loc === 'bar') {
       if (open) { A2.push(btn('beer', C.bar.beer.name, `¥${C.bar.beer.price} · 精神+${C.bar.beer.mental} · 今晚喝了 ${S.beersTonight} 瓶`)); A2.push(btn('skewer', C.bar.skewer.name, `¥${C.bar.skewer.price} · 饱腹+${C.bar.skewer.hunger} · 能和工友聊聊`)); }
     }
+    let lifeP = { acts: [], html: '', top: '' }; if (window.LIFE) { lifeP = LIFE.panel(S.loc, btn, open); lifeP.acts.forEach(x => A2.push(x)); }
     if (S.loc === 'lottery' && open) {
       const L = C.lotteryShop, lt = S.lottery || { spent: 0, won: 0, n: 0, day: 0 }; const n = lt.day === G.dayNum() ? lt.n : 0; const net = (lt.won || 0) - (lt.spent || 0);
       h += `<div class="window ${net < 0 ? 'warnw' : ''}">一共花了 ¥${lt.spent || 0} · 中回 ¥${lt.won || 0} · 净${net >= 0 ? '赚' : '亏'} ¥${Math.abs(net)}</div>`;
@@ -395,7 +401,7 @@
     }
     if ((S.debts || []).some(d => !d.paid)) h = `<div class="window ${(S.debts || []).some(d => !d.paid && G.dayNum() > d.due) ? 'warnw' : ''}">欠着钱：${S.debts.filter(d => !d.paid).map(d => `${d.name} ¥${d.amt}（第${d.due}天前还）`).join('、')}</div>` + h;
     const pn = $('#panel'); const keep = pn.dataset.loc === S.loc ? pn.scrollTop : 0;
-    pn.innerHTML = head + `<div class="act-grid">${A2.join('')}</div>` + `<div class="ctx">${h}${shop}</div>`; pn.scrollTop = keep; pn.dataset.loc = S.loc;
+    pn.innerHTML = head + `<div class="act-grid">${A2.join('')}</div>` + `<div class="ctx">${lifeP.top}${h}${lifeP.html}${shop}</div>`; pn.scrollTop = keep; pn.dataset.loc = S.loc;
     if ($('#open-map')) $('#open-map').onclick = () => UI.map();
     UI.bindBedPreview();
     $('#panel').querySelectorAll('.act').forEach(b => b.onclick = () => UI.doAct(b.dataset.a));
@@ -570,9 +576,7 @@
       cls: 'eat-moment',
       html: `<div class="eat-stage">
         <div class="plate">${A.dish(m)}</div>
-        <div class="bite"></div>
-        <div class="crumbs"></div>
-        <p class="flavor">「${m.flavor || '嗯，还行。'}」</p>
+        <p class="flavor">「${m.flavor || '嗯，还行。'}」</p>${m.text ? `<p class="muted tiny">${m.text}</p>` : ''}
         <div class="eat-chips">${chips.join('')}</div>
       </div>`,
       buttons: [{ text: '擦擦嘴' }]
@@ -754,6 +758,7 @@
 
   UI.doAct = function (a) {
     const S = G.S(); const [k, v] = a.split(':');
+    if (window.LIFE && LIFE.has(k)) return LIFE.doAct(k, v);
     if (k === 'shop') return UI.openClothesShop();
     if (k === 'sell') { UI._shopTab = 'sell'; return UI.openClothesShop(); }
     if (k === 'borrow') return UI.borrowFlow();
@@ -763,7 +768,7 @@
     if (k === 'fish') return act(async () => { const R = C.riverside.fish; await FX.micro('fish'); G.advance(R.minutes); G.change({ mental: R.mental, stamina: R.stamina }); G.log(R.text); const n = Math.random() < 0.5 ? G.pickNpc('riverside') : null; if (n) await UI.talk(n, '凉水河边'); else UI.toast(R.text); });
     if (k === 'wait30') return act(async () => { const f = S.time; G.advance(30); await FX.micro('wait', { from: f, to: S.time }); });
     if (k === 'wait60') return act(async () => { const f = S.time; G.advance(60); await FX.micro('wait', { from: f, to: S.time }); });
-    if (k === 'free') return act(async () => { const F = G.freeMental(v); if (F) { await FX.micro(v === 'callhome' ? 'call' : v === 'river' ? 'karaoke' : 'free'); UI.toast(F.text); } });
+    if (k === 'free') return act(async () => { const F = G.freeMental(v); if (F) { await FX.micro(v === 'callhome' ? 'call' : v === 'river' ? 'karaoke' : 'free', v === 'callhome' && G.callLines ? { lines: G.callLines() } : undefined); UI.toast(F.text); } });
     if (k === 'rest') return act(async () => { const f = S.time; const s0 = Math.round(S.stats.stamina), gain = Math.round(5 * G.hungerRegenMult()); G.advance(60); await FX.micro('rest', { from: f, to: S.time, meter: { label: '体力', from: s0, to: Math.min(S.maxSta, s0 + gain), max: S.maxSta } }); G.change({ stamina: gain }); });
     if (k === 'leftover') return act(async () => {
       const L = C.leftover;
@@ -851,11 +856,13 @@
     if (ch === 1) { const lv = perf.lv || 0; const q = Math.max(0.3, Math.min(0.95, 0.62 + lv * 0.05 + Math.random() * 0.1 - (1 - perf.win) * 0.4)); res = { completed: true, quality: q, mentalMult: 1.05 }; }
     else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt });
     UI._beatVerb = "干到"; const out = G.finishJob(o, wage, res);
+    for (const ml of (out.meals || [])) { await UI.eatMoment({ id: 'jobmeal_' + ml.dish, name: ml.name, dish: ml.dish, price: ml.tier === '好' ? 16 : 10, flavor: ml.flavor, text: ml.text }, { delta: { hunger: ml.hunger, mental: ml.mental || 0 } }); }
     if (window.FX && (res.completed || res.hoursDone > 0.5)) await FX.micro('shiftend', { from: startAbs, to: S.time, bg: jbg, lines: [res.completed ? `${G.clock(startAbs)} 到 ${G.clock()}，这一班熬完了。` : `只干到 ${G.clock()} 就停了。`] });
     let head = res.completed ? '下班了' : res.fired ? '被开除了' : '跑路了';
     let body = res.completed ? `<p>干完了一整班，拿到 <b>¥${out.pay}</b>${res.fines ? `（扣了 ${res.fines} 元）` : ''}。</p>${res.quality != null ? `<p>干活质量 <b>${Math.round(res.quality * 100)}%</b>${out.bonus ? `，${out.bonus > 0 ? `组长多给了 ¥${out.bonus}` : `干得不好，扣了 ¥${-out.bonus}`}` : ''}${out.skillPay ? `，熟手补贴 +¥${out.skillPay}` : ''}。</p>` : ''}${res.summary ? `<p class="muted">${res.summary}</p>` : ''}` :
       res.fired ? `<p>“你别干了！”${j.quitPay === 'hourly' ? `厂里按小时结钱：干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。` : '一分钱也没拿到。'}</p>` :
       `<p>${j.quitPay === 'hourly' ? `你走了。干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。（厂里的规矩：头一个小时不算钱）` : '你借口上厕所跑了。中途跑路就等于白干。'}</p>`;
+    if ((out.meals || []).length) body += `<p class="why">${out.meals.map(m => `管的饭：${m.name}（${m.tier === '好' ? '实在' : m.tier === '差' ? '凑合不起来' : '凑合'}，饱腹 +${m.hunger}）`).join('；')}。</p>`;
     if (out.cut) body += `<p class="why">中介从工钱里抽走了 <b>¥${out.cut}</b>${out.gross ? `（原本 ¥${out.gross}）` : ''}。</p>`;
     if (out.delayed) body += `<p class="why bad">工钱 ¥${out.delayed} 没当场给：“过两天一起结。”（会自动到账，但这几天手头更紧）</p>`;
     if (out.unpaid) body += `<p class="why bad">工钱 ¥${Math.max(0, (out.gross || 0) - (out.cut || 0))} 没拿到。中介说厂里没打款，电话再打就不接了。</p>`;
@@ -874,9 +881,9 @@
     // 兜底结果：按“一般水平”结算（品质 0.6，略低于及格）
     const FALLBACK = () => ({ completed: true, quality: 0.6, mentalMult: 1, fines: 0, fallback: true });
     return UI.modal({ cls: 'mgmodal', wide: true, bg: jb ? A.IMG.job(jb.id) : null, html: '<div id="mgroot"></div>', buttons: [], onShow: (m, close) => {
-      const root = m.querySelector('#mgroot'); let settled = false, t0 = Date.now(); window.MG_HB = 0;
+      const root = m.querySelector('#mgroot'); let settled = false, t0 = Date.now(); window.MG_HB = 0; if (window.Music) Music.setTrack('work');
       const stuckBtn = document.createElement('button'); stuckBtn.className = 'btn sm mg-skip' + (first ? ' hidden' : ''); stuckBtn.textContent = '跳过（按一般水平结算）▸'; stuckBtn.id = 'mg-skip';
-      const fin = (r, note) => { if (settled) return; settled = true; clearInterval(wd); window.MG_KILL = performance.now() + 1; window.MG_FAIL = null; if (window.MG_CUR_CLEAN) window.MG_CUR_CLEAN(); if (note) UI.toast(note); close(r); };
+      const fin = (r, note) => { if (settled) return; settled = true; clearInterval(wd); if (window.Music) Music.setTrack('street'); window.MG_KILL = performance.now() + 1; window.MG_FAIL = null; if (window.MG_CUR_CLEAN) window.MG_CUR_CLEAN(); if (note) UI.toast(note); close(r); };
       stuckBtn.onclick = () => { fin(FALLBACK(), '这一段按一般水平结算了。'); };
       m.appendChild(stuckBtn);
       window.MG_FAIL = () => fin(FALLBACK(), '这一段出了点小状况，按一般水平结算了。');
@@ -1028,6 +1035,7 @@
         if (r.err) return UI.toast(r.err, 'bad');
         UI._beatVerb = '睡到'; await FX.micro(lid === 'street' || lid === 'shelter' ? 'street' : 'sleep', { from: f0, to: G.S().time, bg: BV ? BV.img : null });
         await UI.modal({ title: '醒了', bg: BV ? BV.img : null, html: `<p>现在是第 ${G.dayNum()} 天 ${G.clock()}。体力 ${r.gain.sta >= 0 ? '+' : ''}${r.gain.sta}，精神 ${r.gain.men >= 0 ? '+' : ''}${r.gain.men}。</p>${r.cold ? `<p class="warn">${C.coldPenalty.text}</p>` : ''}${r.robbed ? `<p class="why bad">醒来发现裤兜里少了 ${r.robbed} 元——床位房里，总有人顺手牵羊。</p>` : ''}` }); UI._pick = null; UI.bedPreview(null);
+        const S = G.S();
         if (S.dayPostcardPending) {
           const pc = S.dayPostcardPending; S.dayPostcardPending = null;
           G.addAlbum({ id: 'day_' + pc.day, kind: 'day', title: '今天又撑过来了', caption: `第 ${pc.day} 天 · 身上 ¥${pc.money} · 寄回 ¥${pc.sent} · 故事 ${pc.stories} · 整班 ${pc.worked}`, day: pc.day });
@@ -1220,6 +1228,8 @@
     opts = opts || {};
     const S = G.S(); if (!S) return;
     if (!S.album) S.album = [];
+    S.albumSeen = S.album.length;   // v1.0：翻看过就清掉红点
+    try { UI.render(); } catch (e) {}
     const KIND = {
       arrive: { label: '抵达', cls: 'k-arrive' },
       send: { label: '寄回家', cls: 'k-send' },

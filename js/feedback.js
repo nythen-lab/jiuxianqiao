@@ -1,6 +1,6 @@
 // v0.9.3 反馈按钮：点一下，打开一个预先填好版本、天数、地点的 GitHub 反馈页（朋友不用任何设置）
 (function () {
-  const REPO = 'nythen-lab/jiuxianqiao', VER = '0.9.4';
+  const REPO = 'nythen-lab/jiuxianqiao', VER = '1.0';
   function ctxInfo() {
     let day = '-', place = '-', clock = '-', who = '-';
     try {

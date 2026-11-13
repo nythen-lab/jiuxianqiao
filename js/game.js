@@ -418,7 +418,10 @@
     const j = C.jobs.find(x => x.id === o.job);
     const total = (hm(j.end) - hm(j.start) + 1440) % 1440;
     const frac = res.completed ? 1 : clamp(res.hoursDone * 60 / total, 0, 1);
-    G.advance(Math.round(total * frac), 'work');
+    // v1.0 管饭：每份活的那一顿真的会端上来，吃了才补饱腹（在工时中间发生）
+    const mealDefs = (j.meal && C.jobMeals && C.jobMeals[j.id]) || null; const eaten = []; const goalMin = Math.round(total * frac); let adv = 0;
+    if (mealDefs) mealDefs.forEach(m => { if (frac >= Math.min(1, m.at + 0.08)) { const t = Math.round(goalMin * m.at) - adv; if (t > 0) { G.advance(t, 'work'); adv += t; } G.change({ hunger: m.hunger, mental: m.mental || 0 }); eaten.push(m); } });
+    G.advance(goalMin - adv, 'work');
     const c = j.cost;
     const tired = (S.stats.stamina <= TH().staminaLow ? 1.15 : 1) * (S.stats.hunger <= 20 ? 1.2 : 1) * ((j.heavy || j.id === 'courier') ? (G.identity().heavyJobMult || 1) : 1);
     { const dm = Math.round((c.mental * (res.mentalMult || 1)) * Math.max(frac, .4));
@@ -430,7 +433,7 @@
     { const sj = G.seasonJob(j.id), sea = G.season(); if (sj.sta && frac > 0.3) G.change({ stamina: Math.round(sj.sta * frac) });
       if (sj.chill && !G.outfit().warm && Math.random() < sj.chill && C.debuffs.chill && !S.debuffs.some(x => x.id === 'chill')) { S.debuffs.push({ id: 'chill', until: G.dayNum() + C.debuffs.chill.days }); G.log(C.debuffs.chill.text, 'bad'); }
       const hs = sea && sea.heatstroke; if (hs && hs.jobs.includes(j.id) && S.stats.stamina < hs.below && Math.random() < hs.p) { G.change(hs.effects); G.log(hs.text, 'bad'); G.queue.push({ title: '中暑了', text: hs.text, eff: hs.effects }); S.heatstrokes = (S.heatstrokes || 0) + 1; } }
-    if (j.meal && frac > 0.4) G.change({ hunger: 30 });
+    if (j.meal && !mealDefs && frac > 0.4) { G.change({ hunger: 30 }); }
     let pay = 0;
     let bonus = 0, skillPay = 0;
     if (res.completed) {
@@ -475,7 +478,7 @@
       S.dayLedger = S.dayLedger || {}; S.dayLedger.wage = (S.dayLedger.wage || 0) + pay + delayed;
     }
     G.fireEvents('afterJob', { job: j.id, completed: !!res.completed });
-    return { pay, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross };
+    return { pay, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten };
   };
 
   // ================= 吃穿住 =================

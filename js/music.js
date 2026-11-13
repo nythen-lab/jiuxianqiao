@@ -99,8 +99,34 @@
     osc.start(t0); osc.stop(t0 + dur + 0.05);
   }
 
+  // v1.0 第二首：干活 / 小游戏用的带鼓点的曲子（D 小调五声，节奏更紧）
+  const WBASS = [38, 38, 45, 38, 41, 41, 48, 41, 36, 36, 43, 36, 43, 43, 50, 43];
+  const WMEL = [62, 0, 65, 0, 69, 67, 0, 65, 62, 0, 60, 0, 62, 65, 0, 0, 67, 0, 69, 0, 72, 69, 0, 67, 65, 0, 62, 0, 60, 62, 0, 0];
+  let hatBuf = null;
+  function hat(vol) { const ctx = M.ctx; if (!ctx || M.muted) return; if (!hatBuf) { hatBuf = ctx.createBuffer(1, ctx.sampleRate * 0.06, ctx.sampleRate); const d = hatBuf.getChannelData(0); for (let i = 0; i < d.length; i++) d[i] = (Math.random() * 2 - 1) * (1 - i / d.length); } const s = ctx.createBufferSource(); s.buffer = hatBuf; const f = ctx.createBiquadFilter(); f.type = 'highpass'; f.frequency.value = 6500; const g = ctx.createGain(); g.gain.value = vol; s.connect(f); f.connect(g); g.connect(M.master); s.start(); }
+  function thump(f0) { const ctx = M.ctx; if (!ctx || M.muted) return; const t0 = ctx.currentTime; const o = ctx.createOscillator(), g = ctx.createGain(); o.type = 'sine'; o.frequency.setValueAtTime(f0 * 2.4, t0); o.frequency.exponentialRampToValueAtTime(f0, t0 + 0.12); g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(0.5, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + 0.28); o.connect(g); g.connect(M.master); o.start(t0); o.stop(t0 + 0.32); }
+  function pluck(midi, dur, vol, type) { const ctx = M.ctx; if (!ctx || M.muted || !midi) return; const t0 = ctx.currentTime; const o = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter(); o.type = type || 'triangle'; o.frequency.value = midiToHz(midi); lp.type = 'lowpass'; lp.frequency.value = 1800; g.gain.setValueAtTime(0.0001, t0); g.gain.exponentialRampToValueAtTime(vol, t0 + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t0 + dur); o.connect(lp); lp.connect(g); g.connect(M.master); o.start(t0); o.stop(t0 + dur + 0.05); }
+  function scheduleWork() {
+    if (!M.started || !M.ctx || M.track !== 'work') return;
+    clearTimeout(M.motifTimer);
+    const i = M.motifStep++; const beat = 60 / 112 / 2; // 八分音符
+    if (i % 2 === 0) { const b = WBASS[(i / 2) % WBASS.length]; pluck(b, beat * 1.7, 0.34, 'sawtooth'); if ((i / 2) % 2 === 0) thump(52); }
+    else hat(0.1);
+    const m = WMEL[i % WMEL.length]; if (m) pluck(m, beat * 1.6, 0.17, 'triangle');
+    M.motifTimer = setTimeout(scheduleWork, beat * 1000);
+  }
+  M.track = 'street';
+  M.setTrack = function (t) {
+    if (M.track === t) return; M.track = t; if (!M.started || !M.ctx) return;
+    clearTimeout(M.motifTimer); M.motifStep = 0;
+    try { M.padGain.gain.setTargetAtTime(t === 'work' ? 0.1 : 0.35, M.ctx.currentTime, 0.4); } catch (e) { }
+    if (t === 'work') scheduleWork(); else scheduleMotif();
+    try { document.documentElement.dataset.track = t; } catch (e) { }
+  };
+
   function scheduleMotif() {
     if (!M.started || !M.ctx) return;
+    if (M.track === 'work') return scheduleWork();
     clearTimeout(M.motifTimer);
     const step = MOTIF[M.motifStep % MOTIF.length];
     M.motifStep++;

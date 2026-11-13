@@ -101,15 +101,16 @@
 
   MG.mover = function (root, o) {
     const van = { x: 560, y: 180, w: 300, h: 230 };
-    const cols = 4, rows = 3, cw = 72, ch = 56;
-    const mkSlots = () => { const a = []; for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) a.push({ x: van.x + 40 + c * cw + cw / 2, y: van.y + van.h - 20 - r * ch - ch / 2, used: false }); return a; };
+    const cols = 4, rows = 3, cw = 66, ch = 56;
+    const gx0 = van.x + 22 + ((van.w - 10) - cols * cw) / 2;   // v1.0：格子在灰色车厢内居中，不再溢出右边
+    const mkSlots = () => { const a = []; for (let r = 0; r < rows; r++) for (let c = 0; c < cols; c++) a.push({ x: gx0 + c * cw + cw / 2, y: van.y + van.h - 20 - r * ch - ch / 2, used: false }); return a; };
     return dragGame(root, o, Object.assign({
       type: 'mover', title: '装卸搬运 · 08:00–12:00', help: '按住箱子拖进车厢里亮着的格子，<b>从下往上</b>码。越重越难拽、越晃——等它不晃了再松手。',
       note: '箱子下面的条是晃动：变红时松手会码塌。', bg: 'img/bg-job-mover.jpg', dur: 42, hours: 4, startH: 8,
       queue: 3, src: [170, 360], floor: 400, snap: 46, tiltTol: 0.32, keepTilt: true, slotW: cw - 4, slotH: ch - 4, spring: 90, tireK: 0.35, target: 18, maxErr: 7,
       okWord: '装车', errWord: '码塌', dropLine: '箱子掉地上了！摔坏了算你的！', tiltLine: '没放稳，一摞全塌了！', goodLine: '稳！',
       kg: () => Math.random() < 0.3 ? 25 + Math.floor(Math.random() * 15) : 8 + Math.floor(Math.random() * 14),
-      w: kg => 56 + kg * 0.4, h: kg => 40 + kg * 0.35,
+      w: kg => Math.min(cw - 6, 46 + kg * 0.3), h: kg => Math.min(ch - 4, 38 + kg * 0.3),
       slots: mkSlots, refill: st => { st.slots.forEach(s => s.used = false); st.items = st.items.filter(i => !i.placed); st.msg = '一车装满！下一辆倒进来了。'; st.msgT = 1.6; },
       inSource: i => i.x < 330 && i.y > 280,
       drawScene: (ctx, st) => {

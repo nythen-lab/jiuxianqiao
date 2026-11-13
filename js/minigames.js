@@ -123,27 +123,40 @@
       const { ctx, bar } = setup(root, '临时安保 · 站岗 07:00–19:00', '外卖车开到岗亭前时按 <kbd>空格</kbd> 拦下；无聊了可以 <kbd>P</kbd> 玩手机，但查岗的来了要赶紧收起来');
       bar.innerHTML = `<button class="mg-btn" id="mg-stop">拦下（空格）</button><button class="mg-btn" id="mg-phone">掏出手机（P）</button>`;
       const DUR = o.dur || 40; const perf = o.perf || { win: 1, shake: 0.6 };
-      const gateW = 70 * perf.win; const drowsy = (perf.win || 1) < 0.9;
-      const st = MG.cur = { type: 'guard', blink: 0, nextBlink: 4, t: 0, bored: 20, boredSum: 0, phone: false, cars: [], nextCar: 3, checks: [0.3 + Math.random() * 0.15, 0.62 + Math.random() * 0.2], check: null, fines: 0, blocked: 0, missed: 0, caughtPhone: 0, msg: null, msgT: 0, done: false };
+      const gateW = 100 * Math.max(0.7, perf.win); const drowsy = (perf.win || 1) < 0.9;
+      const st = MG.cur = { type: 'guard', blink: 0, nextBlink: 4, t: 0, bored: 20, boredSum: 0, phone: false, cars: [], nextCar: 1, checks: [0.3 + Math.random() * 0.15, 0.62 + Math.random() * 0.2], check: null, fines: 0, blocked: 0, missed: 0, caughtPhone: 0, msg: null, msgT: 0, done: false };
       ['guard-bg.jpg', 'ebike.png', 'sedan.png', 'guard-idle.png', 'guard-phone.png'].forEach(n => IMG('img/mg/' + n));
-      const gateX = 380;
-      const stopCar = () => { if (st.phone) { st.msg = '手机还在手上呢！'; st.msgT = 1; return; } const c = st.cars.find(c => !c.done && Math.abs(c.x - gateX) < gateW); if (c) { c.done = 'stop'; st.blocked++; st.msg = '“这儿不让进，绕一下。”'; st.msgT = 1.2; st.pole = 0.0001; } };
+      const gateX = 380; st.buf = 0; st.flash = null; st.banner = null; st.pulse = 0;
+      // v1.0 强反馈：闪屏 + 震屏 + 音效 + 大字条
+      const fb = (kind, text, sub) => {
+        const cv = ctx.canvas; const col = kind === 'bad' ? '220,40,30' : kind === 'good' ? '60,200,110' : '240,190,70';
+        st.flash = { t: 0, d: kind === 'bad' ? 0.7 : 0.35, col }; if (text) st.banner = { t: 0, d: kind === 'bad' ? 2.4 : 1.1, text, sub: sub || '', bad: kind === 'bad' };
+        if (kind === 'bad') { cv.classList.remove('mg-shake'); void cv.offsetWidth; cv.classList.add('mg-shake'); setTimeout(() => cv.classList.remove('mg-shake'), 650); try { navigator.vibrate && navigator.vibrate([90, 50, 140]); } catch (e) { } if (window.FX) FX.sfx.play('siren'); if (window.Music) Music.stinger('caught'); }
+        else if (kind === 'good') { if (window.FX) FX.sfx.play('ding'); } else if (window.FX) FX.sfx.play('buzz');
+      };
+      const inZone = c => !c.done && Math.abs(c.x - gateX) < gateW;
+      const stopCar = () => { if (st.phone) { st.msg = '手机还在手上呢！先收起来！'; st.msgT = 1.2; fb('warn'); return; } const c = st.cars.find(inZone); if (c) { c.done = 'stop'; st.blocked++; st.msg = '“这儿不让进，绕一下。”'; st.msgT = 1.2; st.pole = 0.0001; st.buf = 0; fb('good', '拦住了！'); } else { st.buf = 0.35; st.msg = '这会儿没车到线上——车进了绿色区再按'; st.msgT = 1; if (window.FX) FX.sfx.play('buzz'); } };
       const togglePhone = () => { st.phone = !st.phone; bar.querySelector('#mg-phone').textContent = st.phone ? '收起手机（P）' : '掏出手机（P）'; };
-      st.stopCar = stopCar; st.togglePhone = togglePhone;
+      st.stopCar = stopCar; st.togglePhone = togglePhone; st.fb = fb; st.inZone = inZone; st.gateW = gateW;
       const offK = keys(e => { if (e.code === 'Space') { stopCar(); return true; } if (e.key === 'p' || e.key === 'P') { togglePhone(); return true; } });
       bar.querySelector('#mg-stop').onclick = stopCar; bar.querySelector('#mg-phone').onclick = togglePhone;
       const finish = res => { if (st.done) return; st.done = true; offK(); stop(); setTimeout(() => resolve(res), 900); };
       const stop = loop(dt => {
         st.t += dt; const prog = st.t / DUR;
         st.bored = Math.max(0, Math.min(100, st.bored + (st.phone ? -7 : 3) * dt)); st.boredSum += st.bored * dt;
-        st.nextCar -= dt; if (st.nextCar <= 0) { st.cars.push({ x: -90, done: null, v: 150 + Math.random() * 50 }); st.nextCar = 3 + Math.random() * 3.5; }
-        st.cars.forEach(c => { if (c.done === 'stop') c.x -= 180 * dt; else c.x += (c.v || 170) * dt; if (!c.done && c.x > gateX + gateW) { c.done = 'miss'; st.missed++; st.fines += 10; st.msg = '漏过去一辆！扣10块！'; st.msgT = 1.4; } });
+        st.nextCar -= dt; if (st.nextCar <= 0) { st.cars.push({ x: -90, done: null, v: 125 + Math.random() * 40 }); st.nextCar = 3 + Math.random() * 3.5; }
+        st.pulse += dt; if (st.buf > 0) { st.buf -= dt; const cb = st.cars.find(inZone); if (cb && !st.phone) { st.buf = 0; stopCar(); } }
+        st.cars.forEach(c => { if (c.done === 'stop') c.x -= 180 * dt; else c.x += (c.v || 170) * dt; if (!c.done && c.x > gateX + gateW) { c.done = 'miss'; st.missed++; st.fines += 10; st.msg = '漏过去一辆！扣10块！'; st.msgT = 1.4; fb('bad', '漏车了！', '-¥10 · 下次早点按空格'); } });
         st.cars = st.cars.filter(c => c.x > -140 && c.x < W + 160);
         if (st.checks.length && prog > st.checks[0] && !st.check) { st.check = { t: 0 }; st.checks.shift(); }
-        if (st.check) { st.check.t += dt; if (st.check.t > 1.8 && !st.check.hit) { st.check.hit = true; if (st.phone) { st.caughtPhone++; st.fines += 30; st.msg = '查岗的：“站岗玩手机？扣三十！”'; st.msgT = 2; } else { st.msg = '查岗的点点头，开走了。'; st.msgT = 1.5; } } if (st.check.t > 3.2) st.check = null; }
+        if (st.check) { st.check.t += dt; if (st.check.t > 1.8 && !st.check.hit) { st.check.hit = true; if (st.phone) { st.caughtPhone++; st.fines += 30; st.msg = '查岗的：“站岗玩手机？扣三十！”'; st.msgT = 2; fb('bad', '被抓到玩手机！', '-¥30 · 查岗的记下了你的工号'); } else { st.msg = '查岗的点点头，开走了。'; st.msgT = 1.5; } } if (st.check.t > 3.2) st.check = null; }
         st.msgT -= dt;
         if (st.pole) { st.pole += dt; if (st.pole > 1.3) st.pole = 0; }
         const bgI = IMG('img/mg/guard-bg.jpg'); if (bgI) ctx.drawImage(bgI, 0, H - W * 9 / 16, W, W * 9 / 16); else { ctx.fillStyle = '#b7c3cf'; ctx.fillRect(0, 0, W, H); ctx.fillStyle = '#5f5d5b'; ctx.fillRect(0, 395, W, 75); }
+        // 拦车区：路面上一条看得见的绿色带，车进来就亮 + 提示按空格
+        { const anyIn = st.cars.some(inZone); const pu = 0.5 + 0.5 * Math.sin(st.pulse * 6); ctx.save(); ctx.fillStyle = anyIn ? `rgba(70,210,120,${0.30 + pu * 0.22})` : 'rgba(255,230,150,0.13)'; ctx.fillRect(gateX - gateW, 372, gateW * 2, 100); ctx.strokeStyle = anyIn ? 'rgba(120,255,170,.95)' : 'rgba(255,240,190,.5)'; ctx.setLineDash([8, 6]); ctx.lineWidth = anyIn ? 3 : 2; ctx.strokeRect(gateX - gateW, 372, gateW * 2, 100); ctx.setLineDash([]);
+          if (anyIn && !st.phone) { ctx.font = '800 26px sans-serif'; ctx.textAlign = 'center'; ctx.lineWidth = 5; ctx.strokeStyle = 'rgba(10,40,20,.85)'; ctx.strokeText('现在！按空格', gateX, 355 - pu * 4); ctx.fillStyle = '#c8ffd9'; ctx.fillText('现在！按空格', gateX, 355 - pu * 4); }
+          else { ctx.font = '700 14px sans-serif'; ctx.textAlign = 'center'; ctx.fillStyle = 'rgba(255,245,215,.8)'; ctx.fillText('拦车区（车进来再按）', gateX, 366); } ctx.restore(); }
         // 路过的外卖电动车（Q 版贴图）
         const eb = IMG('img/mg/ebike.png');
         st.cars.forEach(c => { const bob = Math.sin(st.t * 14 + c.x * .05) * 1.2; const wob = c.done === 'stop' ? -0.06 : 0; if (eb) { const h = 118, w = h * eb.width / eb.height; ctx.save(); ctx.translate(c.x, 455 + bob); ctx.rotate(wob); if (c.done === 'stop') ctx.scale(-1, 1); ctx.drawImage(eb, -w / 2, -h, w, h); ctx.restore(); } else { rr(ctx, c.x - 30, 420, 60, 30, 8, '#f2c14e'); } });
@@ -164,6 +177,8 @@
         if (drowsy) { st.nextBlink -= dt; if (st.nextBlink <= 0) { st.blink = 0.9; st.nextBlink = 3 + Math.random() * 4 * perf.win; } }
         if (st.blink > 0) { st.blink -= dt; const k = Math.sin(Math.min(1, st.blink / 0.9) * Math.PI); ctx.fillStyle = '#0b0a0c'; ctx.fillRect(0, 0, W, H * 0.5 * k); ctx.fillRect(0, H - H * 0.5 * k, W, H * 0.5 * k); }
         if (drowsy) txt(ctx, '困得眼皮打架……', W - 20, 30, 15, '#b33a2e', 'right');
+        if (st.flash) { st.flash.t += dt; const k = 1 - st.flash.t / st.flash.d; if (k <= 0) st.flash = null; else { ctx.fillStyle = `rgba(${st.flash.col},${(0.55 * k).toFixed(3)})`; ctx.fillRect(0, 0, W, H); if (st.flash.col === '220,40,30') { const gr = ctx.createRadialGradient(W / 2, H / 2, H * 0.3, W / 2, H / 2, H * 0.9); gr.addColorStop(0, 'rgba(200,0,0,0)'); gr.addColorStop(1, `rgba(200,0,0,${(0.8 * k).toFixed(3)})`); ctx.fillStyle = gr; ctx.fillRect(0, 0, W, H); } } }
+        if (st.banner) { const b = st.banner; b.t += dt; if (b.t > b.d) st.banner = null; else { const pop = Math.min(1, b.t / 0.18), fade = Math.min(1, (b.d - b.t) / 0.4); ctx.save(); ctx.globalAlpha = fade; ctx.translate(W / 2, H * 0.4); ctx.scale(0.7 + 0.3 * pop + (b.bad ? 0.12 * Math.sin(b.t * 30) * (1 - pop) : 0), 0.7 + 0.3 * pop); rr(ctx, -250, -50, 500, b.sub ? 108 : 78, 16, b.bad ? 'rgba(150,20,16,.92)' : 'rgba(30,110,60,.9)'); ctx.textAlign = 'center'; ctx.font = '900 40px sans-serif'; ctx.fillStyle = '#fff'; ctx.fillText(b.text, 0, 8); if (b.sub) { ctx.font = '600 20px sans-serif'; ctx.fillStyle = '#ffe3b0'; ctx.fillText(b.sub, 0, 46); } ctx.restore(); } }
         if (st.t >= DUR) { finish({ completed: true, fines: st.fines, quality: Math.max(0.2, 1 - st.missed * 0.08 - st.caughtPhone * 0.15), mentalMult: 0.5 + (st.boredSum / DUR) / 100 }); bubble(ctx, '收队！上车回酒仙桥！', 330, 170); return false; }
       });
     });
@@ -252,7 +267,7 @@
         else if (st.phase === 'wash') bar.innerHTML = `<button class="mg-btn" id="mg-wash">按住洗手（或按住空格）</button>`;
         else bar.innerHTML = `<button class="mg-btn" id="mg-cut">直着落一刀（空格）</button><span class="mg-note">标准厚度：虚线 · 合格 ±${Math.round(TOL / TGT * 8 * 10) / 10} 毫米 · ${perf.notes.map(n => n.t).join(' · ')}</span>`;
         bar.querySelectorAll('.dress').forEach(b => b.onclick = () => dress(+b.dataset.i));
-        const w = bar.querySelector('#mg-wash'); if (w) { w.onmousedown = () => st.washing = true; w.onmouseup = w.onmouseleave = () => washUp(); }
+        const w = bar.querySelector('#mg-wash'); if (w) { w.onpointerdown = () => st.washing = true; w.onpointerup = w.onpointerleave = () => washUp(); }
         const c = bar.querySelector('#mg-cut'); if (c) c.onclick = () => chopStraight();
       };
       const dress = i => { if (st.phase !== 'dress') return; if (i === st.idx) { st.idx++; if (ORDER[st.idx] === '洗手消毒') { st.phase = 'wash'; } } else { st.fines += 10; st.msg = '监工：“顺序错了！罚十块！”'; st.msgT = 1.6; } drawBar(); };
@@ -294,8 +309,8 @@
       st.cut = () => chopStraight();
       st.dress = dress; st.washDown = () => st.washing = true; st.washUp = washUp;
       const pos = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left) / b.width * W, (e.clientY - b.top) / b.height * H]; };
-      cv.onmousemove = e => { [st.mx, st.my] = pos(e); if (st.drag) { st.drag.pts.push([st.kx + jitter(), st.my]); if (Math.random() < 0.12) SFX.squish(); if (st.my >= BOTY) { finishDrag(); } } };
-      cv.onmousedown = e => { if (st.phase !== 'cut' || st.autoCut) return; [st.mx, st.my] = pos(e); st.drag = { pts: [[st.kx, Math.max(st.my, TOPY - 5)]], x0: st.kx, y0: st.my }; };
+      cv.onpointermove = e => { [st.mx, st.my] = pos(e); if (st.drag) { st.drag.pts.push([st.kx + jitter(), st.my]); if (Math.random() < 0.12) SFX.squish(); if (st.my >= BOTY) { finishDrag(); } } };
+      cv.onpointerdown = e => { if (st.phase !== 'cut' || st.autoCut) return; [st.mx, st.my] = pos(e); st.drag = { pts: [[st.kx, Math.max(st.my, TOPY - 5)]], x0: st.kx, y0: st.my }; };
       const finishDrag = () => {
         const d = st.drag; st.drag = null; if (!d) return;
         const pts = d.pts; const reached = pts[pts.length - 1][1] >= BOTY - 4;
@@ -308,12 +323,12 @@
         const path = []; for (let n = 0; n < ROWS; n++) { const y = rowY(n); let best = pts[0]; for (const p of pts) if (Math.abs(p[1] - y) < Math.abs(best[1] - y)) best = p; path.push(best[0]); }
         commitCut(path);
       };
-      const upM = () => { if (st.drag) finishDrag(); }; window.addEventListener('mouseup', upM);
+      const upM = () => { if (st.drag) finishDrag(); }; window.addEventListener('pointerup', upM);
       const offK = keys(e => { if (e.code === 'Space') { if (st.phase === 'wash') { if (!e.repeat) st.washing = true; } else if (!e.repeat) chopStraight(); return true; } });
       const upK = e => { if (e.code === 'Space') washUp(); }; window.addEventListener('keyup', upK);
       drawBar();
       const DUR = o.dur || 30;
-      const finish = res => { if (st.done) return; st.done = true; offK(); window.removeEventListener('keyup', upK); window.removeEventListener('mouseup', upM); stop(); setTimeout(() => resolve(res), 1200); };
+      const finish = res => { if (st.done) return; st.done = true; offK(); window.removeEventListener('keyup', upK); window.removeEventListener('pointerup', upM); stop(); setTimeout(() => resolve(res), 1200); };
       const drawSlicePoly = (g, sl, ox, oy) => {
         g.beginPath();
         for (let n = 0; n < ROWS; n++) g.lineTo(sl.L[n] - sl.fromX + ox + sl.jag[n], rowY(n) - TOPY + oy);
@@ -495,11 +510,11 @@
       const need = o.R.loot.time * (1 - (o.skill || 0) * 0.05);
       const st = MG.cur = { type: 'pick', cx: 450, cy: 250, vx: 0, vy: 0, r: R, prog: 0, sus: 0, holding: false, mx: -1, my: -1, started: false, done: false, glance: 0, t: 0 };
       const pos = e => { const b = cv.getBoundingClientRect(); return [(e.clientX - b.left) / b.width * W, (e.clientY - b.top) / b.height * H]; };
-      cv.onmousedown = e => { [st.mx, st.my] = pos(e); st.holding = true; st.started = true; };
-      cv.onmousemove = e => { [st.mx, st.my] = pos(e); };
+      cv.onpointerdown = e => { [st.mx, st.my] = pos(e); st.holding = true; st.started = true; };
+      cv.onpointermove = e => { [st.mx, st.my] = pos(e); };
       const up = () => { if (st.holding && !st.done && st.started) { st.holding = false; finish(st.prog >= 1 ? 'success' : 'abort'); } };
-      window.addEventListener('mouseup', up);
-      const finish = r => { if (st.done) return; st.done = true; window.removeEventListener('mouseup', up); stop(); if (o.force) r = o.force; setTimeout(() => resolve(r), 700); };
+      window.addEventListener('pointerup', up);
+      const finish = r => { if (st.done) return; st.done = true; window.removeEventListener('pointerup', up); stop(); if (o.force) r = o.force; setTimeout(() => resolve(r), 700); };
       st.finish = finish;
       const stop = loop(dt => {
         st.t += dt;

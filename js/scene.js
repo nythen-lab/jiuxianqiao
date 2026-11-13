@@ -8,7 +8,7 @@
     place: id => `img/bg-${id}.jpg`,
     job: id => `img/bg-job-${id}.jpg`,
     dish: { bun: 'img/dish-bun.jpg', noodle: 'img/dish-noodle.jpg', dumpling: 'img/dish-dumpling.jpg', boxmeal: 'img/dish-boxmeal.jpg', box: 'img/dish-boxmeal.jpg',
-      leftover: 'img/dish-boxmeal.jpg', sausage: 'img/dish-sausage.jpg', stew: 'img/dish-stew.jpg', lamb: 'img/dish-lamb.jpg', bbq: 'img/dish-lamb.jpg', beer: 'img/dish-lamb.jpg' }
+      leftover: 'img/dish-boxmeal.jpg', sausage: 'img/dish-sausage.jpg', stew: 'img/dish-stew.jpg', lamb: 'img/dish-lamb.jpg', bbq: 'img/dish-lamb.jpg', beer: 'img/dish-beer.jpg', workbox: 'img/dish-workbox.jpg', mantou: 'img/dish-mantou.jpg', canteen: 'img/dish-canteen.jpg', bland: 'img/dish-bland.jpg', fish: 'img/dish-fish.jpg' }
   };
   // 时段：dawn 4–7:30 / day 7:30–17 / dusk 17–19 / night
   A.timeMode = h => (h >= 5 && h < 7) ? 'dawn' : (h >= 7 && h < 17) ? 'day' : (h >= 17 && h < 19) ? 'dusk' : 'night';
@@ -31,9 +31,9 @@
     return oldDish(meal);
   };
 
-  const ORDER = ['corner', 'food', 'clothes', 'inn', 'bar', 'bank', 'netcafe', 'lottery', 'clinic', 'agency', 'riverside', 'dormtower'];
-  const SHORT = { corner: '人力市场', food: '清真饭馆', clothes: '服装店', inn: '平安旅社', bar: '烧烤摊', bank: '银行·车站', netcafe: '通宵网吧', lottery: '彩票店', clinic: '卫生室', agency: '劳务中介', riverside: '凉水河公园', dormtower: '宿舍楼' };
-  const ICON = { corner: '👷', food: '🍜', clothes: '👕', inn: '🛏️', bar: '🍢', bank: '🏦', netcafe: '🖥️', lottery: '🎟️', clinic: '💊', agency: '📋', riverside: '🎣', dormtower: '🏢' };
+  const ORDER = ['corner', 'food', 'clothes', 'inn', 'bar', 'bank', 'bath', 'netcafe', 'lottery', 'clinic', 'agency', 'riverside', 'dormtower', 'sales', 'hall', 'kinder', 'home'];
+  const SHORT = { corner: '人力市场', food: '清真饭馆', clothes: '服装店', inn: '平安旅社', bar: '烧烤摊', bank: '银行·车站', netcafe: '通宵网吧', lottery: '彩票店', clinic: '卫生室', agency: '劳务中介', riverside: '凉水河公园', dormtower: '宿舍楼', bath: '老澡堂', sales: '售楼处', hall: '幸福礼堂', kinder: '幼儿园', home: '我的小家' };
+  const ICON = { corner: '👷', food: '🍜', clothes: '👕', inn: '🛏️', bar: '🍢', bank: '🏦', netcafe: '🖥️', lottery: '🎟️', clinic: '💊', agency: '📋', riverside: '🎣', dormtower: '🏢', bath: '🛁', sales: '🏘️', hall: '💒', kinder: '🧸', home: '🏠' };
   A.placeIcon = id => ICON[id] || '📍';
   A.placeShort = id => SHORT[id] || id;
 
@@ -41,7 +41,7 @@
   A.mapTiles = function (S, G, big) {
     const h = G.hourF();
     const places = ORDER.map(id => C.places.find(p => p.id === id)).filter(Boolean).concat(C.places.filter(p => !ORDER.includes(p.id)));
-    return places.map(p => {
+    return places.filter(p => !(p.hidden && !(G.isUnlocked && G.isUnlocked('place', p)))).map(p => {
       const unl = G.isUnlocked ? G.isUnlocked('place', p) : true;
       if (!unl) return `<div class="bld locked" data-lock="${p.id}" title="${p.unlockHint || '还没开放'}"><div class="th"><i>🔒</i></div><div class="bt"><b>？？？</b><small>${p.unlockHint || '还没开放'}</small></div></div>`;
       const o = G.isOpen(p), here = S.loc === p.id;
@@ -52,7 +52,7 @@
   A.townMap = function (S, G, badges) {
     const M = C.townMap, h = G.hourF(), mode = A.timeMode(h); badges = badges || {};
     const sea = G.season ? G.season() : null;
-    const pins = ORDER.map(id => C.places.find(p => p.id === id)).filter(p => p && M.pins[p.id]).map(p => {
+    const pins = ORDER.map(id => C.places.find(p => p.id === id)).filter(p => p && M.pins[p.id] && !(p.hidden && !(G.isUnlocked && G.isUnlocked('place', p)))).map(p => {
       const [x, y] = M.pins[p.id]; const unl = G.isUnlocked ? G.isUnlocked('place', p) : true; const here = S.loc === p.id; const o = G.isOpen(p); const edge = x >= 84 ? ' er' : x <= 14 ? ' el' : '';
       if (!unl) return `<button class="pin locked${edge}" data-lock="${p.id}" style="--x:${x};--y:${y}" title="${p.unlockHint || '还没开放'}"><i>🔒</i><span class="pl"><b>？？？</b><small>${p.unlockHint || '还没开放'}</small></span></button>`;
       const m = G.travelMin(S.loc, p.id);
@@ -80,9 +80,10 @@
     const realNight = window.FX && FX.hasNightImg(S.loc) && FX.isDark(h) && FX.placeImg(S.loc, h) === (C.phaseImgs[S.loc] || {}).night;
     const tintC = realNight ? 'nightimg' : tint;
     const spots = (people || []).map(x => `<button class="spot ${x.kind}" data-spot="${x.kind}:${x.key}" title="${x.tip || x.name}"><span class="pt card">${A.portrait(x.look)}</span><b>${x.name}</b><small>${x.sub || ''}</small></button>`).join('');
-    return `<div class="scn" data-mode="${mode}">
+    const seaId = G.season ? (G.season() || {}).id : ''; const outdoorSea = (C.seasons.outdoorPlaces || []).includes(S.loc);
+    return `<div class="scn" data-mode="${mode}" data-sea="${seaId}">
       <div class="scn-img" style="background-image:url(${A.placeImg(S.loc, h)})"></div>
-      <div class="scn-tint ${tintC}"></div><div class="scn-season s-${G.season ? G.season().id : ''}"></div>${open ? '' : '<div class="scn-shut">已打烊</div>'}
+      <div class="scn-tint ${tintC}"></div><div class="scn-season s-${seaId}"></div>${outdoorSea && seaId === 'winter' ? '<div class="scn-snow"></div>' : ''}${open ? '' : '<div class="scn-shut">已打烊</div>'}
       <div class="scn-vig"></div><div class="scn-over"></div><div class="scn-cap hidden"></div>
       <div class="scn-plaque"><b>${P.name}</b><small>${P.sign}${open ? '' : ' · 已打烊'}</small></div>
       ${spots ? `<div class="scn-spots">${spots}</div>` : ''}

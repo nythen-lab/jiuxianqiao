@@ -75,8 +75,42 @@
     blipme: () => tone(rnd([520, 560, 600, 660]), .06, { type: 'square', vol: .03 }),
     note: () => tone(rnd([392, 440, 523, 587]), .22, { type: 'triangle', vol: .04 }),
     lightoff: () => { tone(200, .06, { type: 'square', vol: .06 }); },
+    siren: () => { for (let i = 0; i < 3; i++) { tone(620, .22, { type: 'sawtooth', vol: .09, at: i * .44, to: 900 }); tone(900, .22, { type: 'sawtooth', vol: .09, at: i * .44 + .22, to: 620 }); } noise(.25, { f: 300, vol: .12 }); },
+    buzz: () => { tone(150, .22, { type: 'square', vol: .08, to: 110 }); },
+    ding: () => { tone(1046, .35, { type: 'triangle', vol: .13 }); tone(1568, .45, { type: 'triangle', vol: .09, at: .09 }); },
+    whistle: () => { tone(2100, .5, { vol: .06, to: 2400 }); },
     fast: () => { for (let i = 0; i < 10; i++) tone(1800, .03, { type: 'square', vol: .02, at: i * .08 }); }
   };
+  // ---- v1.0 人声合成：带共振峰的锯齿波 + 颤音，听起来像“啊——”地唱 / 含糊地说话 ----
+  const VOW = { a: [800, 1150], o: [500, 900], e: [550, 1800], i: [300, 2300], u: [320, 800] };
+  function voiceNote(f, d, o) {
+    o = o || {}; const a = SFX.ac(); if (!a) return; const t = a.currentTime + (o.at || 0); const vw = VOW[o.v || 'a'];
+    const os = a.createOscillator(); os.type = 'sawtooth'; os.frequency.setValueAtTime(f * (o.from || 1), t); if (o.from) os.frequency.exponentialRampToValueAtTime(f, t + Math.min(0.08, d / 3));
+    if (o.to) os.frequency.exponentialRampToValueAtTime(f * o.to, t + d);
+    const lfo = a.createOscillator(), lg = a.createGain(); lfo.frequency.value = 5.2 + Math.random() * 0.8; lg.gain.value = f * (o.vib == null ? 0.012 : o.vib); lfo.connect(lg); lg.connect(os.frequency);
+    const out = a.createGain(); const vol = o.vol || 0.12; out.gain.setValueAtTime(0.0001, t); out.gain.exponentialRampToValueAtTime(vol, t + Math.min(0.06, d / 3)); out.gain.setValueAtTime(vol, t + Math.max(0.07, d - 0.09)); out.gain.exponentialRampToValueAtTime(0.0001, t + d);
+    vw.forEach((fc, i) => { const bp = a.createBiquadFilter(); bp.type = 'bandpass'; bp.frequency.value = fc; bp.Q.value = 5 + i * 2; const g = a.createGain(); g.gain.value = i ? 0.55 : 1; os.connect(bp); bp.connect(g); g.connect(out); });
+    out.connect(a.destination); os.start(t); lfo.start(t); os.stop(t + d + 0.05); lfo.stop(t + d + 0.05);
+  }
+  SFX.voiceNote = voiceNote;
+  // 一句老歌（五声音阶），带拖长音
+  SFX.lib.sing = () => { const L = [[0, .38], [2, .38], [4, .5], [7, .75], [4, .38], [2, .38], [0, .5], [-3, .9], [0, .38], [2, .38], [4, .5], [2, .38], [0, 1.1]]; let at = 0.05; L.forEach(([sm, d]) => { voiceNote(semi(247, sm + 12), d * 0.95, { at, vol: .15, v: sm === 7 || sm === -3 ? 'o' : 'a', vib: .014 }); at += d; }); };
+  SFX.lib.sing2 = () => { const L = [[7, .45], [9, .45], [12, .7], [9, .45], [7, .45], [4, .9], [7, .45], [4, .45], [2, .5], [0, 1.2]]; let at = 0.05; L.forEach(([sm, d]) => { voiceNote(semi(247, sm), d * 0.95, { at, vol: .15, v: 'a' }); at += d; }); };
+  // 说话含糊的音节串：who = 'them'（家里人，音高高一点）| 'me'
+  SFX.speak = function (who, n) { const base = who === 'me' ? 128 : 205; n = n || 6; let at = 0; for (let i = 0; i < n; i++) { const d = 0.08 + Math.random() * 0.1; const f = base * (0.9 + Math.random() * 0.4); voiceNote(f, d, { at, vol: .1, v: rnd(['a', 'o', 'e', 'a', 'i', 'u']), from: .93 + Math.random() * .1, vib: .004 }); at += d + 0.04 + Math.random() * (i % 3 === 2 ? .18 : .05); } };
+  SFX.lib.speakme = () => SFX.speak('me', 5 + Math.floor(Math.random() * 4));
+  SFX.lib.speakthem = () => SFX.speak('them', 6 + Math.floor(Math.random() * 5));
+  // 老式电话铃：嘀铃铃 × 2
+  SFX.lib.phonering = () => { for (let k = 0; k < 2; k++) for (let i = 0; i < 12; i++) { tone(i % 2 ? 1250 : 1500, .045, { type: 'square', vol: .075, at: k * 1.25 + i * .05 }); } };
+  // 拨号中的回铃音：嘟——（长）
+  SFX.lib.ringback = () => { tone(425, 1.0, { vol: .09 }); tone(425, 1.0, { vol: .09, at: 1.6 }); };
+  SFX.lib.pickup = () => { noise(.12, { f: 900, vol: .1 }); tone(660, .09, { type: 'triangle', vol: .08, at: .05 }); };
+  SFX.lib.hangup = () => { tone(500, .12, { vol: .08 }); tone(380, .18, { vol: .08, at: .12 }); };
+  // 冷饮：开瓶盖 + 气泡
+  SFX.lib.capoff = () => { noise(.06, { f: 3000, q: 2, vol: .12 }); tone(1800, .08, { vol: .08, to: 900 }); noise(.7, { f: 4500, fto: 2500, q: .7, vol: .04, at: .06, att: .02 }); };
+  // 首次触摸/点击时解锁音频（手机浏览器、微信需要用户手势）
+  SFX.unlock = function () { const a = SFX.ac(); if (!a) return; try { const b = a.createBuffer(1, 1, 22050), src = a.createBufferSource(); src.buffer = b; src.connect(a.destination); src.start(0); } catch (e) { } };
+  ['pointerdown', 'touchend', 'keydown'].forEach(ev => addEventListener(ev, function once() { SFX.unlock(); removeEventListener(ev, once); }, { passive: true }));
   SFX.play = n => { try { if (n && SFX.lib[n]) SFX.lib[n](); } catch (e) { } };
 
   // ================= 时段 / 昼夜图 =================
@@ -91,7 +125,7 @@
     if (m === 'dawn' || m === 'dusk') return (FX.isDark(h) ? P.night : P.day) || P.day || P.night;
     return P.day || P.night;
   };
-  FX.mapImg = function (h) { const M = C.mapImgs || {}; const m = FX.imgPhase(h); const dark = m === 'night' || ((m === 'dawn' || m === 'dusk') && FX.isDark(h)); return (dark ? M.night : M.day) || C.townMap.img; };
+  FX.mapImg = function (h) { const M = C.mapImgs || {}; const m = FX.imgPhase(h); const dark = m === 'night' || ((m === 'dawn' || m === 'dusk') && FX.isDark(h)); const sea = (window.G && G.S && G.S() && G.season) ? G.season() : null; const SM = sea && M.seasons && M.seasons[sea.id]; if (SM) return (dark ? SM.night : SM.day) || (dark ? M.night : M.day); return (dark ? M.night : M.day) || C.townMap.img; };
   FX.hasNightImg = id => !!((C.phaseImgs || {})[id] || {}).night;
   // 换图时柔和地淡入：把旧图盖在上面再淡出
   const lastImg = {};
@@ -376,9 +410,11 @@
         st.innerHTML = `<div class="mx-phone"><div class="mx-num"></div><div class="mx-pad">${'123456789*0#'.split('').map(k => `<span>${k}</span>`).join('')}</div></div>`;
         const keys = st.querySelectorAll('.mx-pad span'), num = st.querySelector('.mx-num'); const seq = [1, 3, 8, 0, 0, 0, 0, 0, 0, 0, 0];
         seq.forEach((k, i) => later(() => { const el = [...keys].find(x => x.textContent === String(k)); if (el) { el.classList.add('hit'); setTimeout(() => el.classList.remove('hit'), 140); } num.textContent += i < 3 ? k : '•'; SFX.play('key'); }, 120 + i * 120));
-        later(() => { num.textContent = '嘟——嘟——'; SFX.play('ring'); }, 1550);
-        later(() => { st.querySelector('.mx-phone').classList.add('talk'); num.textContent = '通话中'; }, 3200);
-        lines.forEach((t, i) => later(() => say(t, i % 2 ? 'me' : 'them'), 3300 + i * (dur - 3800) / lines.length));
+        later(() => { num.textContent = '嘟——嘟——'; SFX.play('ringback'); }, 1500);
+        later(() => SFX.play('phonering'), 2500);
+        later(() => { st.querySelector('.mx-phone').classList.add('talk'); num.textContent = '通话中'; SFX.play('pickup'); }, 3400);
+        lines.forEach((t, i) => later(() => { say(t, i % 2 ? 'me' : 'them'); SFX.play(i % 2 ? 'speakme' : 'speakthem'); }, 3600 + i * (dur - 4200) / lines.length));
+        later(() => SFX.play('hangup'), dur - 450);
         later(() => end(), dur);
       } else if (T === 'choose') {
         st.innerHTML = `<div class="mx-screen"><div class="mx-glow"></div><p>${esc(M.ask)}</p><div class="mx-opts">${M.options.map((o, i) => `<button class="btn sm" data-o="${i}">${esc(o.t)}</button>`).join('')}</div></div>`; SFX.play('beep');
@@ -401,14 +437,15 @@
         pull.onclick = () => { if (!biting || res) return; res = 'hit'; SFX.play('coin'); say(lines[1]); st.querySelector('.mx-water').innerHTML = '<span class="mx-fish">🐟</span>'; later(() => end('hit'), 1700); };
         later(() => end(res || 'miss'), dur + 1500);
       } else if (T === 'eat') {
-        const D = cx.dish || {}, tier = cx.tier || 'normal', kind = cx.kind || 'box'; const bites = M.bites; const src = (window.A && A.IMG && (A.IMG.dish[kind] || A.IMG.dish[D.id])) || '';
+        const D = cx.dish || {}, tier = cx.tier || 'normal', kind = cx.kind || 'box'; const bites = M.bites; const AI = (window.ART && window.ART.IMG && window.ART.IMG.dish) || {}; const src = AI[kind] || AI[D.id] || AI[D.dish] || AI.boxmeal || '';
         const ut = M.utensil || '🥢';
-        st.innerHTML = `<div class="mx-eat ${tier}"><div class="mx-steam"><i></i><i></i><i></i></div><div class="mx-bowl"><div class="mx-food" style="background-image:url(${src})"></div><div class="mx-empty"></div></div><div class="mx-ut">${ut}</div><div class="mx-glow2"></div></div>`;
-        const food = st.querySelector('.mx-food'), emp = st.querySelector('.mx-empty'), u = st.querySelector('.mx-ut'), steam = st.querySelector('.mx-steam'), box = st.querySelector('.mx-eat');
+        const cold = kind === 'beer'; const drops = cold ? Array.from({ length: 16 }, (_, i) => `<b style="--x:${6 + (i * 37) % 88}%;--y:${8 + (i * 53) % 80}%;--d:${(i % 5) * .5}s;--s:${3 + (i % 4) * 1.5}px"></b>`).join('') : '';
+        st.innerHTML = `<div class="mx-eat ${tier}${cold ? ' cold' : ''}">${cold ? '<div class="mx-mist"><i></i><i></i><i></i></div>' : '<div class="mx-steam"><i></i><i></i><i></i></div>'}<div class="mx-bowl"><div class="mx-food" style="background-image:url(${src})"></div><div class="mx-empty"></div>${cold ? `<div class="mx-frost"></div><div class="mx-drops">${drops}</div>` : ''}</div><div class="mx-ut">${ut}</div><div class="mx-glow2"></div></div>`;
+        const food = st.querySelector('.mx-food'), emp = st.querySelector('.mx-empty'), u = st.querySelector('.mx-ut'), steam = st.querySelector('.mx-steam') || st.querySelector('.mx-mist'), box = st.querySelector('.mx-eat');
         const per = (dur * 0.78) / bites; say(M.open);
         for (let i = 0; i < bites; i++) {
           later(() => { u.className = 'mx-ut dip'; }, 300 + i * per);
-          later(() => { SFX.play(M.sfxBite); u.className = 'mx-ut up'; const f = (i + 1) / bites; emp.style.setProperty('--e', f); food.style.transform = `scale(${1 - f * 0.25})`; steam.style.opacity = Math.max(.15, 1 - f * .85); if (M.sfxChew) setTimeout(() => SFX.play(M.sfxChew), 260); }, 300 + i * per + per * 0.38);
+          later(() => { SFX.play(M.sfxBite); u.className = 'mx-ut up'; const f = (i + 1) / bites; emp.style.setProperty('--e', f * 0.5); food.style.transform = `scale(${1 - f * 0.1})`; steam.style.opacity = Math.max(.15, 1 - f * .85); if (M.sfxChew) setTimeout(() => SFX.play(M.sfxChew), 260); }, 300 + i * per + per * 0.38);
           if (M.lines && M.lines[i]) later(() => say(M.lines[i]), 300 + i * per + per * 0.5);
         }
         later(() => { u.className = 'mx-ut'; box.classList.add('done'); SFX.play('belly'); if (M.sfxEnd) setTimeout(() => SFX.play(M.sfxEnd), 500); ln.innerHTML = ''; say(M.belly, 'warm'); }, 300 + bites * per + 200);
@@ -416,7 +453,8 @@
       } else if (T === 'mirror') {
         st.innerHTML = `<div class="mx-mirror"><div class="mx-frame"><div class="mx-fig">${cx.fig || ''}</div><div class="mx-sweep"></div></div><div class="mx-tags">${(cx.tags || []).map(t => `<i>${esc(t)}</i>`).join('')}</div></div>`;
         SFX.play('cloth'); say(lines[0]); later(() => { SFX.play('chime'); say(cx.verdict || lines[1]); }, dur * 0.55); later(() => st.querySelector('.mx-mirror').classList.add('turn'), dur * 0.3); later(() => end(), dur);
-      } else { later(() => end(), 600); }
+      } else if (FX.ext && FX.ext[T]) { FX.ext[T]({ st, ln, say, later, end, dur, M, cx, ov, SFX, rnd, over: () => over, lines }); }
+      else { later(() => end(), 600); }
     });
   };
 })();
