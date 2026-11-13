@@ -77,6 +77,7 @@
   G.decency = () => clamp(Math.round(G.outfit().decency + S.stats.clean * 0.45 - 20), 0, 100);
   G.hasRecord = () => S.record.count > 0;
   G.debuff = id => S.debuffs.find(d => d.id === id && d.until >= G.dayNum());
+  G.warmed = () => !!(G.debuff('warmed') || G.debuff('loose'));
   G.addDebuff = id => { const D = C.debuffs[id]; if (!D) return; S.debuffs = S.debuffs.filter(d => d.id !== id); S.debuffs.push({ id, until: G.dayNum() + D.days - 1 }); };
   G.recoverMult = (k) => { let m = 1; S.debuffs.forEach(d => { if (d.until >= G.dayNum()) { const D = C.debuffs[d.id]; if (k === 'stamina' && D.staminaRecover) m *= D.staminaRecover; if (k === 'mental' && D.mentalRecover) m *= D.mentalRecover; } }); return m; };
   G.change = (eff, src) => {
@@ -105,7 +106,7 @@
         sc.stamina = clamp(sc.stamina + r.stamina * f * G.recoverMult('stamina') * G.hungerRegenMult(), 0, S.maxSta);
         sc.mental = clamp(sc.mental + (r.mental > 0 ? r.mental * G.recoverMult('mental') : r.mental) * f, 0, 100);
         const h = G.hourF();
-        if (lodge.cold && !G.outfit().warm && (h >= 22 || h < 6)) sc.stamina = clamp(sc.stamina + C.coldPenalty.stamina * f, 0, S.maxSta);
+        if (lodge.cold && !G.outfit().warm && !G.warmed() && (h >= 22 || h < 6)) sc.stamina = clamp(sc.stamina + C.coldPenalty.stamina * f, 0, S.maxSta);
       } else if (mode === 'work') {
         sc.hunger = clamp(sc.hunger + (ST.perHourWorkHunger || -5) * f, 0, 100);
       } else {
@@ -231,7 +232,7 @@
   };
   // v0.9 地图：两地之间走路几分钟（按地图上的距离）
   G.travelMin = function (from, to) {
-    const M = C.townMap; if (!M || from === to) return 0; const a = M.pins[from], b = M.pins[to]; if (!a || !b) return 10;
+    const M = C.townMap; if (!M || from === to) return 0; const coords = M.walkPins || M.pins; const a = coords[from], b = coords[to]; if (!a || !b) return 10;
     const W = M.walk, d = Math.hypot(a[0] - b[0], (a[1] - b[1]) * 0.56) ; // 图是 16:9，纵向距离按比例缩
     return Math.max(W.min, Math.min(W.max, Math.round((W.base + d * W.perPct) / W.step) * W.step));
   };
@@ -425,6 +426,14 @@
   };
 
   // ================= 干活结算 =================
+  // v1.0.2：中途「不干了，走人」的结算：约 35% 一分没有，否则按 30%–60% 结，理由每次不一样
+  G.quitRoll = function () {
+    const none = ['领班把脸一沉：“干一半就走？这活算你没干，一分不给。”', '工头摆摆手：“中途撂挑子的，今天的钱没你的份。”', '会计翻了翻本子：“你这是自己走的，不算工，没有。”', '管事的头也不抬：“走就走，工钱谁来补我的窟窿？没有。”', '老板冷笑一声：“我这里不养半途而废的，一分钱没有。”'];
+    const part = ['领班叹口气：“算了，干了多少给你结个零头。”', '工头数了几张零钱塞给你：“就这些，下次别中途溜。”', '会计按小时给你折了折：“干多少算多少，打个折。”', '管事的看你实在干不动了，勉强给你结了一部分。', '老板嘟囔着：“看你可怜，按一半多点给你。”'];
+    const r = Math.random(); const pick = a => a[Math.floor(Math.random() * a.length)];
+    if (r < .35) return { frac: 0, line: pick(none) };
+    return { frac: Math.round((0.3 + Math.random() * 0.3) * 100) / 100, line: pick(part) };
+  };
   G.finishJob = function (o, wage, res) {
     const j = C.jobs.find(x => x.id === o.job);
     const total = (hm(j.end) - hm(j.start) + 1440) % 1440;
@@ -440,22 +449,22 @@
     { const dm = Math.round((c.mental * (res.mentalMult || 1)) * Math.max(frac, .4));
       // 干一班活本身不会把人直接压垮：最多压到“快崩溃”的线上，给玩家留一口气去缓
       const floor = Math.min(S.stats.mental, TH().mentalForce + 2);
-      G.change({ stamina: Math.round(c.stamina * frac * tired), clean: Math.round(c.clean * frac) });
+      G.change({ stamina: Math.round(c.stamina * frac * tired * (c.stamina < 0 && G.debuff('loose') ? C.debuffs.loose.workSta : 1)), clean: Math.round(c.clean * frac) });
       S.stats.mental = Math.max(floor, S.stats.mental + dm); }
     if (res.mentalBonus) G.change({ mental: res.mentalBonus });
     { const sj = G.seasonJob(j.id), sea = G.season(); if (sj.sta && frac > 0.3) G.change({ stamina: Math.round(sj.sta * frac) });
-      if (sj.chill && !G.outfit().warm && Math.random() < sj.chill && C.debuffs.chill && !S.debuffs.some(x => x.id === 'chill')) { S.debuffs.push({ id: 'chill', until: G.dayNum() + C.debuffs.chill.days }); G.log(C.debuffs.chill.text, 'bad'); }
+      if (sj.chill && !G.outfit().warm && !G.warmed() && Math.random() < sj.chill && C.debuffs.chill && !S.debuffs.some(x => x.id === 'chill')) { S.debuffs.push({ id: 'chill', until: G.dayNum() + C.debuffs.chill.days }); G.log(C.debuffs.chill.text, 'bad'); }
       const hs = sea && sea.heatstroke; if (hs && hs.jobs.includes(j.id) && S.stats.stamina < hs.below && Math.random() < hs.p) { G.change(hs.effects); G.log(hs.text, 'bad'); G.queue.push({ title: '中暑了', text: hs.text, eff: hs.effects }); S.heatstrokes = (S.heatstrokes || 0) + 1; } }
     if (j.meal && !mealDefs && frac > 0.4) { G.change({ hunger: 30 }); }
     let pay = 0;
-    let bonus = 0, skillPay = 0;
+    let bonus = 0, skillPay = 0, quitInfo = null;
     if (res.completed) {
       if (j.qualityPay && res.quality != null) bonus = Math.round((res.quality - 0.7) * j.qualityPay / 5) * 5;
       const lv = j.skill ? (S.skills[j.skill] || 0) : 0;
       if (lv >= 3) skillPay = (lv - 2) * 5;  // 熟手补贴
       pay = wage - (res.fines || 0) + bonus + skillPay;
     }
-    else if (j.quitPay === 'hourly') pay = Math.floor(res.hoursDone - 1 > 0 ? (res.hoursDone - 1) : 0) * j.hourly;  // 干了4小时只算3小时
+    else if (res.quit || (!res.fired && !res.completed)) { const qp = res.quitPay || G.quitRoll(); quitInfo = { line: qp.line, full: wage, frac: qp.frac }; pay = Math.round(wage * qp.frac); }   // v1.0.2：中途走人，随机结钱：按整班工钱的 30%–60%，或者一分没有
     pay = Math.max(0, Math.round(pay));
     const E = G.EC();
     let cut = 0, delayed = 0, unpaid = false, gross = pay;
@@ -472,7 +481,7 @@
       firstJob = S.jobsDone[j.id] === 1;
       S.stats_total.worked++;
 
-      if (j.debuff) G.addDebuff(j.debuff);
+      if (j.debuff && !(j.debuff === 'chill' && G.warmed())) G.addDebuff(j.debuff);
     }
     // 技能经验：干得越好涨得越多（跑路/被开除也会涨一点）
     let xp = null;
@@ -491,7 +500,7 @@
       S.dayLedger = S.dayLedger || {}; S.dayLedger.wage = (S.dayLedger.wage || 0) + pay + delayed;
     }
     G.fireEvents('afterJob', { job: j.id, completed: !!res.completed });
-    return { pay, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten, hungerEnd: Math.round(S.stats.hunger) };
+    return { pay, quitLine: quitInfo && quitInfo.line, quitFull: quitInfo && quitInfo.full, quitFrac: quitInfo && quitInfo.frac, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten, hungerEnd: Math.round(S.stats.hunger) };
   };
 
   // ================= 吃穿住 =================
@@ -570,8 +579,8 @@
   G.scrapOk = () => C.broke.scrap.where.includes(S.loc) && G.inHours(C.broke.scrap.hours[0], C.broke.scrap.hours[1]);
   G.oddjobOk = () => S.loc === C.broke.oddjob.where && G.isOpen(C.places.find(p => p.id === 'food')) && S.flags.oddjobDay !== G.dayNum();
   G.borrowOk = () => ['corner', 'food', 'bar', 'riverside'].includes(S.loc);
-  G.scrap = function () {
-    const B = C.broke.scrap; let m = ri(B.money[0], B.money[1]); if (S.loc === 'bar' && G.hourF() >= 19) m += ri(0, B.barBonus);
+  G.scrap = function (mult) {
+    const B = C.broke.scrap; let m = ri(B.money[0], B.money[1]); if (S.loc === 'bar' && G.hourF() >= 19) m += ri(0, B.barBonus); if (mult != null) m = Math.max(mult === 0 ? 0 : 1, Math.round(m * mult));
     G.advance(B.minutes); G.change({ stamina: B.stamina, mental: B.mental }); S.stats.clean = clamp(S.stats.clean + B.clean, 0, 100);
     S.money += m; S.scrapTotal = (S.scrapTotal || 0) + m;
     G.log(`捡了两个钟头瓶子，卖了 ${m} 元。`, 'warn'); return { money: m, line: pick(B.lines) };
@@ -640,7 +649,7 @@
     G.advance(minutes, 'sleep', L);
     let robbed = 0;
     if (Math.random() < L.stealRisk && S.money > 10) { robbed = Math.min(C.robbedMax || 999, Math.round(S.money * rnd(C.robbedRange[0], C.robbedRange[1]))); S.money -= robbed; }
-    const cold = L.cold && !G.outfit().warm;
+    const cold = L.cold && !G.outfit().warm && !G.warmed();
     G.log(`在${L.name}睡了${Math.round(minutes / 6) / 10}小时${paid ? `（-${paid}元）` : ''}。`);
     if (robbed) G.log(`醒来发现裤兜里少了 ${robbed} 元。谁拿的？床位房里的人早走了一半。`, 'bad');
     if (cold) G.log(C.coldPenalty.text, 'warn');
@@ -910,7 +919,7 @@
     S.forced.sleep++; S.flags.collapsedOnce = S.flags.collapsedOnce || G.dayNum();
     // 身体总会缓回来一点，免得刚醒又倒
     S.stats.stamina = Math.max(S.stats.stamina, TH().staminaForce + (where === 'street' ? 26 : 22));
-    const cold = L.cold && !G.outfit().warm;
+    const cold = L.cold && !G.outfit().warm && !G.warmed();
     G.log(`体力撑不住，${where === 'street' ? '倒在自助厅门口睡了过去' : '一头栽在' + L.name + '上睡死了'}，睡了 ${Math.round(minutes / 60)} 小时。${robbed ? `醒来少了 ${robbed} 元。` : ''}${lostItem ? `丢了${lostItem}。` : ''}`, 'bad');
     if (frozen) S.stats.stamina = 0;
     return { where, L, paid, robbed, lostItem, cold, frozen, winterText: ns ? ns.forcedText : '', hours: Math.round(minutes / 60), gain: { sta: Math.round(S.stats.stamina - before.sta), men: Math.round(S.stats.mental - before.men) } };

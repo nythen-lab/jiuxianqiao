@@ -31,9 +31,9 @@
     return oldDish(meal);
   };
 
-  const ORDER = ['corner', 'food', 'clothes', 'inn', 'bar', 'bank', 'bath', 'netcafe', 'lottery', 'clinic', 'agency', 'riverside', 'dormtower', 'sales', 'hall', 'kinder', 'home'];
-  const SHORT = { corner: '人力市场', food: '清真饭馆', clothes: '服装店', inn: '平安旅社', bar: '烧烤摊', bank: '银行·车站', netcafe: '通宵网吧', lottery: '彩票店', clinic: '卫生室', agency: '劳务中介', riverside: '凉水河公园', dormtower: '宿舍楼', bath: '老澡堂', sales: '售楼处', hall: '幸福礼堂', kinder: '幼儿园', home: '我的小家' };
-  const ICON = { corner: '👷', food: '🍜', clothes: '👕', inn: '🛏️', bar: '🍢', bank: '🏦', netcafe: '🖥️', lottery: '🎟️', clinic: '💊', agency: '📋', riverside: '🎣', dormtower: '🏢', bath: '🛁', sales: '🏘️', hall: '💒', kinder: '🧸', home: '🏠' };
+  const ORDER = ['corner', 'food', 'clothes', 'inn', 'bar', 'bank', 'bath', 'netcafe', 'lottery', 'clinic', 'agency', 'riverside', 'dormtower', 'temple', 'sales', 'hall', 'kinder', 'home'];
+  const SHORT = { corner: '人力市场', food: '清真饭馆', clothes: '服装店', inn: '平安旅社', bar: '烧烤摊', bank: '银行·车站', netcafe: '通宵网吧', lottery: '彩票店', clinic: '卫生室', agency: '劳务中介', riverside: '凉水河公园', dormtower: '宿舍楼', bath: '老澡堂', sales: '售楼处', temple: '慈云寺', hall: '幸福酒楼', kinder: '幼儿园', home: '我的小家' };
+  const ICON = { corner: '👷', food: '🍜', clothes: '👕', inn: '🛏️', bar: '🍢', bank: '🏦', netcafe: '🖥️', lottery: '🎟️', clinic: '💊', agency: '📋', riverside: '🎣', dormtower: '🏢', bath: '🛁', sales: '🏘️', temple: '🏯', hall: '🍲', kinder: '🧸', home: '🏠' };
   A.placeIcon = id => ICON[id] || '📍';
   A.placeShort = id => SHORT[id] || id;
 

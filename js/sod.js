@@ -87,7 +87,7 @@
     return new Promise(resolve => {
       const tut0 = !o.noTut && !flag('seenSodP');
       const { cv, ctx, bar, bg } = setup(root, '绿化铺草皮 · 08:00–17:00', '点草皮<b>转 90°</b>，让左边的草皮卷一路接到右边验收旗。<b>颜色和花纹对上</b>才算严丝合缝。');
-      bar.innerHTML = `<button class="mg-btn" id="mg-accept" style="display:none">凑合验收（带色差）</button><button class="mg-btn" id="mg-hint">看图纸（耽误 3 秒）</button><button class="mg-btn ghost" id="mg-tutskip" style="display:none">我会了，跳过教程</button><button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
+      bar.innerHTML = `<button class="mg-btn" id="mg-accept" style="display:none">凑合验收（带色差）</button><button class="mg-btn" id="mg-hint">看图纸（耽误 3 秒）</button><button class="mg-btn ghost" id="mg-tutskip" style="display:none">练习结束</button><button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
       const DUR = o.dur || 70, HOURS = 9, START = 8, MAXTO = 4;
       const perf = o.perf || { win: 1 };
       const st = MG.cur = { type: 'sod', mode: 'pipe', t: 0, done: false, roundN: 0, state: 'play', stT: 0, board: null, rounds: [], doneN: 0, mism: 0, timeouts: 0, score: 0, msg: null, msgT: 0, parts: [], texts: [], shake: 0, tut: tut0 ? { step: 0 } : null, hint: 0, fatigue: o.tired ? 1 : 0, taps: 0, target: Math.max(1, Math.round(DUR / 18)) };
@@ -221,7 +221,7 @@
       $q('mg-quit').onclick = () => finish({ completed: false, quit: true, hoursDone: st.t / DUR * HOURS, quality: 0 });
       st.autoplay = mode => { clearInterval(st._auto); let k = 0; st._auto = setInterval(() => { if (st.done) { clearInterval(st._auto); return; } if (mode === 'bad') return; if (st.state !== 'play') return; const b = st.board; if (b.reach && !b.mismatch) return; const n = nextTap(b); if (n) rotate(n.c, 1); }, 110); };
       st.tapCell = (x, y) => { const b = st.board; const c = b.at(x, y); rotate(c, 1); };
-      newRound(); if (tut0) $q('mg-tutskip').style.display = '';
+      newRound(); if (tut0) $q('mg-tutskip').style.display = 'none';
       function drawTile(c, b, now) {
         const ts = b.ts, x = b.bx + c.x * ts, y = b.by + c.y * ts; ctx.save(); ctx.translate(x + ts / 2, y + ts / 2);
         if (c.shake > 0) ctx.translate(Math.sin(now * 60) * 4 * c.shake, 0);
@@ -296,7 +296,7 @@
     return new Promise(resolve => {
       const tut0 = !o.noTut && !flag('seenSodM');
       const { cv, ctx, bar, bg } = setup(root, '绿化铺草皮 · 08:00–17:00', '点一块草皮，再点<b>相邻</b>的一块换位：三块一样的连成一线就铺平。不成行的换位白费工时。');
-      bar.innerHTML = `<button class="mg-btn" id="mg-hint">看图纸（耽误 3 秒）</button><button class="mg-btn ghost" id="mg-tutskip" style="display:none">我会了，跳过教程</button><button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
+      bar.innerHTML = `<button class="mg-btn" id="mg-hint">看图纸（耽误 3 秒）</button><button class="mg-btn ghost" id="mg-tutskip" style="display:none">练习结束</button><button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
       const DUR = o.dur || 70, HOURS = 9, START = 8, COLS = 7, ROWS = 6, TS = 52, KINDS = 5;
       const BX = 378, BY = 104;
       const st = MG.cur = { type: 'sod', mode: 'match', geo: { BX, BY, TS }, t: 0, done: false, state: 'idle', stT: 0, grid: [], cleared: 0, combo: 0, maxCombo: 0, swaps: 0, bad: 0, score: 0, msg: null, msgT: 0, parts: [], texts: [], shake: 0, sel: null, hint: null, idle: 0, tut: tut0 ? { step: 0 } : null, target: Math.max(12, Math.round(DUR * 1.5)) };
@@ -354,7 +354,7 @@
       const finish = res => { if (st.done) return; st.done = true; stop(); setTimeout(() => resolve(res), 900); };
       $q('mg-quit').onclick = () => finish({ completed: false, quit: true, hoursDone: st.t / DUR * HOURS, quality: 0 });
       st.autoplay = mode => { clearInterval(st._auto); st._auto = setInterval(() => { if (st.done || st.state !== 'idle') return; if (mode === 'bad') return; const m = findMove(); if (m) trySwap(m[0], m[1], m[2], m[3], true); }, 260); };
-      init(); if (tut0) { $q('mg-tutskip').style.display = ''; }
+      init(); if (tut0) { $q('mg-tutskip').style.display = 'none'; }
       const stop = loop(dt => {
         const now = performance.now() / 1000; const tutOn = st.tut && !st.tut.over;
         if (!tutOn) st.t += dt; st.stT += dt; st.msgT -= dt; st.shake = Math.max(0, st.shake - dt); if (st.hint) { st.hint.t -= dt; if (st.hint.t <= 0) st.hint = null; }

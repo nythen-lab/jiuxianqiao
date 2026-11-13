@@ -52,18 +52,21 @@
   // 按住螺栓，力道条来回扫；绿区松手 = 拧下来。松早了没拧动（费时间），过头了滑牙（要返工）。
   MG.stage = function (root, o) {
     return new Promise(resolve => {
-      root.innerHTML = `<div class="mg"><div class="mg-top"><b>拆装舞台 · 09:00–18:00</b><span class="mg-help">按住一颗螺栓，右边的<b>力道条</b>来回扫，在<b>绿区</b>松手就拧下来。松早了没拧动，过头了会滑牙。拆完一块板，下一块推上来。</span></div>
+      root.innerHTML = `<div class="mg"><div class="mg-top"><b>拆装舞台 · 09:00–18:00</b><span class="mg-help">按住一颗螺栓，右边的<b>力道条</b>上的指针来回扫，在<b>绿区</b>松手就拧下来——绿区自己会上下飘，每颗螺栓飘的快慢、宽窄都不一样。松早了没拧动，过头了会滑牙。拆完一块板，下一块推上来。</span></div>
         <canvas width="${W * 2}" height="${H * 2}" style="width:${W}px;height:${H}px;touch-action:none"></canvas><div class="mg-bar"><span class="mg-note">滑牙太多，舞台监督会发火。</span><button class="mg-btn ghost" id="mg-quit">不干了，走人</button></div></div>`;
       const cv = root.querySelector('canvas'), ctx = cv.getContext('2d'); ctx.scale(2, 2);
       const img = new Image(); img.src = 'img/bg-job-stage.jpg';
       const perf = o.perf || { win: 1, shake: .6 }; const DUR = o.dur || 42, HOURS = 9, START = 9;
       const COLS = 4, ROWS = 2, mkBolts = () => { const a = []; for (let r = 0; r < ROWS; r++) for (let c = 0; c < COLS; c++) a.push({ x: 250 + c * 130, y: 225 + r * 110, on: true, spin: 0 }); return a; };
-      const st = MG.cur = { type: 'stage', t: 0, done: false, ok: 0, err: 0, panels: 0, bolts: mkBolts(), sel: null, g: 0, gdir: 1, fatigue: o.tired ? 30 : 0, msg: null, msgT: 0, shake: 0, quality: [], lift: 0, perf };
+      const st = MG.cur = { type: 'stage', t: 0, done: false, ok: 0, err: 0, panels: 0, bolts: mkBolts(), sel: null, g: 0, gdir: 1, zc: .6, zw: .2, zsp: 1.2, zamp: .2, zph: 0, zt: 0, ticks: 0, tickT: 0, trail: [], boltN: 0, boltTag: '', fatigue: o.tired ? 30 : 0, msg: null, msgT: 0, shake: 0, quality: [], lift: 0, perf };
       const MAXERR = 7;
       const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) / r.width * W, (e.clientY - r.top) / r.height * H]; };
-      const zone = () => { const w = 0.2 * (perf.win || 1) * (1 - st.fatigue / 300); return [0.62 - w / 2, 0.62 + w / 2]; };
+      const cl = (v, a, b) => Math.max(a, Math.min(b, v));
+      // 绿区会上下漂：每颗螺栓的漂移速度、幅度、大小都不一样，越往后越窄越快
+      const newBolt = () => { const prog = Math.min(1, st.t / DUR); st.boltN++; const nar = Math.random(), fast = Math.random(); st.zw = cl(.22 * (0.8 + Math.random() * .4) * (1 - prog * .3), .08, .26); st.zsp = (0.9 + fast * 1.1) * (1 + .1 * st.panels); st.zamp = .12 + Math.random() * .14; st.zph = Math.random() * 6.28; st.boltTag = (st.zw < .15 ? '窄' : '宽') + (st.zsp > 1.7 ? '·飘得快' : st.zsp < 1.2 ? '·飘得慢' : ''); };
+      const zone = () => { const w = cl(st.zw * (perf.win || 1) * (1 - st.fatigue / 300), .06, .3); const c = cl(st.zc, w / 2 + .03, 1 - w / 2 - .03); return [c - w / 2, c + w / 2]; };
       st.zoneNow = zone;
-      cv.addEventListener('pointerdown', e => { if (st.done || st.lift > 0) return; cv.setPointerCapture && e.pointerId != null && cv.setPointerCapture(e.pointerId); const [x, y] = pos(e); const b = st.bolts.find(b => b.on && Math.hypot(b.x - x, b.y - y) < 30); if (b) { st.sel = b; st.g = 0; st.gdir = 1; fx('click'); } });
+      cv.addEventListener('pointerdown', e => { if (st.done || st.lift > 0) return; cv.setPointerCapture && e.pointerId != null && cv.setPointerCapture(e.pointerId); const [x, y] = pos(e); const b = st.bolts.find(b => b.on && Math.hypot(b.x - x, b.y - y) < 30); if (b) { st.sel = b; st.g = 0; st.gdir = 1; st.trail = []; st.tickT = 0; newBolt(); fx('click'); } });
       const rel = () => {
         const b = st.sel; st.sel = null; if (!b || st.done) return;
         const [z0, z1] = zone();
@@ -81,7 +84,9 @@
         const [z0, z1] = zone(); if (mode === 'bad' ? st.g > 0.97 : (st.g >= z0 + 0.02 && st.g <= z1 - 0.02)) window.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, pointerId: 1 })); }, 12); };
       const stop = loop(dt => {
         st.t += dt; const prog = st.t / DUR; st.fatigue = Math.min(100, st.fatigue + dt * 0.5);
-        if (st.sel) { st.g += st.gdir * dt * (0.9 + st.fatigue / 140 + 0.15 * st.panels); if (st.g >= 1) { st.g = 1; st.gdir = -1; } if (st.g <= 0) { st.g = 0; st.gdir = 1; } if (Math.random() < dt * 14) fx('tick'); }
+        st.zt += dt; st.zc = .56 + st.zamp * Math.sin(st.zt * st.zsp + st.zph) + .05 * Math.sin(st.zt * st.zsp * 2.3);
+        if (st.sel) { const sp = 0.9 + st.fatigue / 140 + 0.15 * st.panels; st.g += st.gdir * dt * sp; if (st.g >= 1) { st.g = 1; st.gdir = -1; } if (st.g <= 0) { st.g = 0; st.gdir = 1; } st.trail.push({ g: st.g, t: st.t }); if (st.trail.length > 14) st.trail.shift();
+          st.tickT += dt * sp; if (st.tickT >= .075) { st.tickT = 0; st.ticks++; const [a, b] = zone(); if (st.g >= a && st.g <= b) { try { SFX.tone(1250, 1500, .05, .09); } catch (e) { } } else fx('tick'); } }
         st.msgT -= dt; st.shake = Math.max(0, st.shake - dt); if (st.lift > 0) { st.lift -= dt; if (st.lift <= 0) st.bolts = mkBolts(); }
         ctx.save(); if (st.shake > 0) ctx.translate((Math.random() - .5) * 12 * st.shake, (Math.random() - .5) * 8 * st.shake);
         if (img.complete && img.naturalWidth) { const s = Math.max(W / img.naturalWidth, H / img.naturalHeight); ctx.drawImage(img, (W - img.naturalWidth * s) / 2, (H - img.naturalHeight * s) / 2, img.naturalWidth * s, img.naturalHeight * s); } else { ctx.fillStyle = '#2a2a32'; ctx.fillRect(0, 0, W, H); }
@@ -96,7 +101,12 @@
         // 力道条
         const gx = 770, gy = 170, gh = 200; rr(ctx, gx, gy, 28, gh, 8, '#0b0c12cc', '#f3ead888', 1.5); const [z0, z1] = zone();
         ctx.fillStyle = 'rgba(120,230,150,.8)'; ctx.fillRect(gx + 3, gy + gh - z1 * gh, 22, (z1 - z0) * gh); ctx.fillStyle = 'rgba(220,80,60,.45)'; ctx.fillRect(gx + 3, gy + 4, 22, gh - z1 * gh - 4);
-        if (st.sel) { const y = gy + gh - st.g * gh; ctx.fillStyle = '#fff'; ctx.fillRect(gx - 6, y - 3, 40, 6); }
+        { const inz = st.sel && st.g >= z0 && st.g <= z1; if (inz) { ctx.fillStyle = 'rgba(160,255,190,.45)'; ctx.fillRect(gx - 3, gy + gh - z1 * gh - 3, 34, (z1 - z0) * gh + 6); }
+          ctx.strokeStyle = 'rgba(190,255,205,.95)'; ctx.lineWidth = 2; ctx.strokeRect(gx + 3, gy + gh - z1 * gh, 22, (z1 - z0) * gh);
+          const gn = st.sel ? st.g : 0, y = gy + gh - gn * gh, pulse = st.sel ? 1 : .55 + .35 * Math.sin(st.t * 6);
+          if (st.sel) st.trail.forEach((q, i) => { ctx.globalAlpha = i / st.trail.length * .35; ctx.fillStyle = '#ffd27a'; ctx.fillRect(gx - 2, gy + gh - q.g * gh - 2, 32, 4); }); ctx.globalAlpha = pulse;
+          ctx.shadowColor = inz ? '#9fffb8' : '#ffb347'; ctx.shadowBlur = 14; ctx.fillStyle = '#fff'; ctx.fillRect(gx - 8, y - 3, 44, 6); ctx.fillStyle = inz ? '#5fe88a' : '#ff9a2a'; ctx.beginPath(); ctx.moveTo(gx - 10, y - 11); ctx.lineTo(gx + 4, y); ctx.lineTo(gx - 10, y + 11); ctx.closePath(); ctx.fill(); ctx.beginPath(); ctx.moveTo(gx + 38, y - 11); ctx.lineTo(gx + 24, y); ctx.lineTo(gx + 38, y + 11); ctx.closePath(); ctx.fill(); ctx.shadowBlur = 0; ctx.globalAlpha = 1;
+          st.needleY = y; st.needleDrawn = (st.needleDrawn || 0) + 1; if (st.sel) txt(ctx, inz ? '松手！' : '', gx - 50, y + 5, 15, '#9fffb8', 'center', true); if (st.sel && st.boltTag) txt(ctx, '这颗：' + st.boltTag, gx + 14, gy + gh + 40, 12, '#ffe9b0', 'center'); }
         txt(ctx, '力道', gx + 14, gy - 8, 13, '#f3ead8', 'center');
         txt(ctx, st.sel ? '在绿区松手！' : '按住一颗螺栓', gx + 14, gy + gh + 22, 14, '#ffe9b0', 'center', true);
         meter(ctx, 20, 34, 200, `工时  ${clockStr(START, prog, HOURS)}`, prog, '#f2c14e'); meter(ctx, 20, 72, 200, `腰酸 ${Math.round(st.fatigue)}`, st.fatigue / 100, st.fatigue > 70 ? '#d64a3a' : '#e39a4a');

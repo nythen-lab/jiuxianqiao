@@ -111,10 +111,10 @@ CONFIG.clinicServices = [
     text: "针扎进手背，药水一滴一滴往下走。你靠着椅背睡着了。" }
 ];
 CONFIG.agencyServices = [
-  { id: "guardCert", name: "代办保安证", price: 60, days: 3, flag: "hasGuardCert", needCleanRecord: true,
-    text: "中介拍拍胸脯：“没前科的都能办，三天出证。办了好活优先叫你。”", doneText: "保安证办下来了。招保安的看你的眼神不一样了。" },
-  { id: "healthCert", name: "代办健康证", price: 45, days: 2, flag: "hasHealthCert",
-    text: "体检单在他抽屉里变来变去。你付了钱，他让你过两天来拿。", doneText: "健康证拿到了，小红本揣在兜里。酒店端盘的活能去问了。" }
+  { id: "guardCert", name: "考保安员证", price: 60, retake: 30, days: 3, flag: "hasGuardCert", needCleanRecord: true, exam: "guard", pass: 7, nq: 10,
+    text: "中介指着墙上的通知：“没前科才能报。理论考试十道题，对七道算过，再加一场灭火器实操。过了之后三天出证。”", doneText: "保安员证拿到了。招保安的看你的眼神不一样了。" },
+  { id: "healthCert", name: "办健康证（体检）", price: 45, retake: 10, days: 2, flag: "hasHealthCert", exam: "health", pass: 4, nq: 5,
+    text: "“健康证要去指定的门诊体检：排队、抽血、胸透，再答几道食品卫生题。过了两天出报告、发证。”", doneText: "健康证拿到了，小红本揣在兜里。酒店端盘的活能去问了。" }
 ];
 CONFIG.agencyBoard = [
   "白板上写：长期工，包吃住，月薪六千——底下一行小字：前三个月压工资。",

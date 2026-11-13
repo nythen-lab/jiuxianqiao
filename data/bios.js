@@ -1,4 +1,5 @@
 // ===================== v0.9 人物小传 + 慢慢熟起来的信任 + 新身份阿远 + 月租单间和花草 =====================
+// 虚构人物群像；名字、细节均为游戏创作。
 // profile：past 过去 / why 为什么来酒仙桥 / life 在这儿怎么过 / personality 性格 / quirks 小习惯和喜好 / family 家里人 / hope 心里还盼着什么
 // trust：好感到了 minAff 才会说的话（多段，慢慢打开）；没到时，对方只会说 guarded 里的一句。
 window.CONFIG = window.CONFIG || {};

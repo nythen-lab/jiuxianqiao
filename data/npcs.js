@@ -6,6 +6,7 @@
 //   recordLine  有案底、好感又不够时，他说的话
 // 每段对话：opener=他先说的话；options=你可以怎么回；story=聊完这段，你“听到了一个故事”（大学生的目标要用）
 //   options 里：aff=好感变化，mental=精神变化，needItem=需要身上有某样东西才能选，giveItem=送出去
+// 虚构人物群像；名字、细节均为游戏创作。
 window.CONFIG = window.CONFIG || {};
 
 CONFIG.recruiters = {

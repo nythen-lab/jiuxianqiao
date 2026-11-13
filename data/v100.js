@@ -12,9 +12,9 @@ window.CONFIG = window.CONFIG || {};
     { id: "sales", name: "安居里售楼处", sign: "新盘 · 首付三成 · 看房", open: "09:00", close: "18:00",
       desc: "玻璃房子外挂着红白气球，沙盘上的小楼亮着一排灯。你不一定买得起，但看看总是不要钱的。"
     },
-    { id: "hall", name: "幸福礼堂", sign: "婚宴 · 喜庆 · 摆酒", open: "08:00", close: "20:00",
+    { id: "hall", name: "幸福酒楼", sign: "家常菜 · 请客 · 喜宴", open: "00:00", close: "24:00",
       desc: "红桌布、红灯笼、红幕布。管事的大姐说，一年到头，这里最忙的就是这一排周末。",
-      locked: true, hidden: true, unlock: { flag: "hallOpen" } },
+      locked: false, hidden: false },
     { id: "kinder", name: "向阳幼儿园", sign: "幼儿园 · 小班 · 中班", open: "07:30", close: "17:30",
       desc: "墙上画着熊猫和兔子。栏杆里的滑梯一直有人排队，栏杆外的大人一直有人站着。",
       locked: true, hidden: true, unlock: { flag: "kinderOpen" } },
@@ -58,13 +58,15 @@ window.CONFIG = window.CONFIG || {};
   // ---------- 澡堂 ----------
   C.bath = {
     items: [
-      { id: "wash", name: "冲个淋浴", price: 6, minutes: 30, dec: 20, stamina: 4, mental: 3, text: "喷头不太热，水压倒挺足。你把头发搓了两遍，泡沫顺着肩膀流下去，灰色的。" },
-      { id: "soak", name: "泡一池热水", price: 15, minutes: 60, dec: 32, stamina: 9, mental: 7, clear: true, text: "水烫得你龇牙，泡了两分钟，腰上的酸劲儿一点点松开。池子边几个老头在慢悠悠聊天，没人看你。" },
-      { id: "rub", name: "搓澡 + 泡澡", price: 35, minutes: 90, dec: 45, stamina: 14, mental: 11, clear: true, text: "搓澡师傅一巴掌下去，一条灰卷从胳膊上滚下来，他笑：“有一阵子没洗了吧？”你也笑。搓完整个人轻了一圈。" }
+      { id: "wash", name: "冲个淋浴", price: 6, minutes: 30, dec: 15, stamina: 0, mental: 0, perks: [], note: "只把一身灰冲掉：不解乏、不暖身。", text: "喷头不太热，水压倒挺足。你把头发搓了两遍，泡沫顺着肩膀流下去，灰色的。" },
+      { id: "soak", name: "泡一池热水", price: 15, minutes: 60, dec: 30, stamina: 12, mental: 6, clear: ["sore", "chill"], buff: "warmed", perks: ["解开浑身酸痛、散掉受的寒气", "「身子暖透」两天：冬天不会再受寒，睡觉不受冻", "冬天热水另送 体力+3 精神+3"], text: "水烫得你龇牙，泡了两分钟，腰上的酸劲儿一点点松开。池子边几个老头在慢悠悠聊天，没人看你。" },
+      { id: "rub", name: "搓澡 + 泡澡", price: 35, minutes: 90, dec: 45, stamina: 24, mental: 16, clear: ["sore", "chill"], buff: "loose", perks: ["解开浑身酸痛、散掉受的寒气", "「浑身松快」两天：睡觉体力多恢复 30%、精神多恢复 20%", "「浑身松快」两天：干活少费 20% 的力气", "冬天热水另送 体力+3 精神+3"], text: "搓澡师傅一巴掌下去，一条灰卷从胳膊上滚下来，他笑：“有一阵子没洗了吧？”你也笑。搓完整个人轻了一圈。" }
     ],
     decPerClean: 0.45,
-    winterBonus: { stamina: 3, mental: 3, text: "大冬天，热水一冲，整个人才算真的活过来。" }
+    winterBonus: { stamina: 3, mental: 3, text: "大冬天，热水一冲，整个人才算真的活过来。", ids: ["soak", "rub"] }
   };
+  C.debuffs.warmed = { name: "身子暖透", good: true, days: 2, staminaRecover: 1.1, text: "泡透了，骨头缝里都是热的。" };
+  C.debuffs.loose = { name: "浑身松快", good: true, days: 2, staminaRecover: 1.3, mentalRecover: 1.2, workSta: 0.8, text: "搓完泡完，整个人轻了一圈，睡得沉、干活不累。" };
 
   // v1.0.1：澡堂只说「体面」。内部的 clean 由 dec 换算（体面 = 衣服 + 干净×0.45），保证洗完体面真的涨 dec
   C.bath.items.forEach(it => { it.clean = Math.min(100, Math.round(it.dec / 0.45)); });

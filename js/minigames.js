@@ -25,6 +25,7 @@
   function keys(handler) { const born = performance.now(); const h = e => { if (window.MG_KILL > born) return; if (handler(e) === true) e.preventDefault(); }; window.addEventListener('keydown', h); return () => window.removeEventListener('keydown', h); }
   const pick = a => a[Math.floor(Math.random() * a.length)];
   const rr = (ctx, x, y, w, h, r, fill, stroke) => { ctx.beginPath(); ctx.roundRect(x, y, w, h, r); if (fill) { ctx.fillStyle = fill; ctx.fill(); } if (stroke !== false) { ctx.lineWidth = 2.5; ctx.strokeStyle = stroke || INK; ctx.stroke(); } };
+  const FONT = '"PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif';
   const txt = (ctx, s, x, y, size, color, align) => { ctx.font = `${size || 16}px "PingFang SC","Hiragino Sans GB","Microsoft YaHei","Noto Sans CJK SC",sans-serif`; ctx.fillStyle = color || INK; ctx.textAlign = align || 'left'; ctx.fillText(s, x, y); };
   const meter = (ctx, x, y, w, label, v, color, lc) => { txt(ctx, label, x, y - 4, 13, lc || '#f3ead8'); rr(ctx, x, y, w, 12, 6, '#00000055', '#f3ead8'); rr(ctx, x, y, Math.max(0, w * Math.min(1, v)), 12, 6, color, false); };
   const clockStr = (startH, frac, hours) => { const m = Math.floor((startH * 60 + frac * hours * 60) % 1440); return String(Math.floor(m / 60)).padStart(2, '0') + ':' + String(m % 60).padStart(2, '0'); };
@@ -47,7 +48,7 @@
       const PR = o.variant === 'print';
       const { ctx, bar } = setup(root, PR ? '印刷厂包装 · 08:00–20:00' : '快递分拣 · 07:00–19:00', PR ? '书捆到黄色区时，按对应数字键 <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>（或点下面的格子）装进对的箱子' : '包裹到黄色扫码区时，按对应数字键 <kbd>1</kbd><kbd>2</kbd><kbd>3</kbd><kbd>4</kbd>（或点下面的格子）扔进对的格子');
       const BINS = PR ? [{ n: '教辅', c: '#d64a3a' }, { n: '画册', c: '#e3b23c' }, { n: '小说', c: '#3f74b5' }, { n: '杂志', c: '#4b9a5a' }] : [{ n: '朝阳', c: '#d64a3a' }, { n: '海淀', c: '#e3b23c' }, { n: '丰台', c: '#3f74b5' }, { n: '通州', c: '#4b9a5a' }];
-      bar.innerHTML = BINS.map((b, i) => `<button class="mg-btn bin" data-k="${i}" style="--c:${b.c}">${i + 1} · ${b.n}</button>`).join('') + `<button class="mg-btn ghost" id="mg-quit">借口上厕所，跑路</button>`;
+      bar.innerHTML = BINS.map((b, i) => `<button class="mg-btn bin" data-k="${i}" style="--c:${b.c}">${i + 1} · ${b.n}</button>`).join('') + `<button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
       const perf = o.perf || { shake: 0.6, win: 1, speed: 1 };
       const zw = Math.round(130 * perf.win), ZONE = [625 - zw / 2, 625 + zw / 2];
       const DUR = o.dur || 40;
@@ -71,9 +72,9 @@
       const stop = loop(dt => {
         st.t += dt; const prog = st.t / DUR;
         st.burst = prog > 0.78 && prog < 0.9;
-        const speed = (150 + prog * 150) * (st.burst ? 1.35 : 1) * (perf.speed || 1);
+        const speed = (140 + prog * 90) * (st.burst ? 1.1 : 1) * Math.min(1, perf.speed || 1);   // v1.0.2：速度封顶，最快约 253 像素/秒
         st.spawn -= dt;
-        if (st.spawn <= 0) { const kg = Math.random() < 0.25 ? 16 + Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * 10); st.pk.push({ x: -40, code: Math.floor(Math.random() * 4), kg, w: 42 + kg * 1.6, h: 30 + kg * 0.7 }); st.spawn = Math.max(0.5, 1.3 - prog * 0.8) * (st.burst ? 0.65 : 1); }
+        if (st.spawn <= 0) { const kg = Math.random() < 0.25 ? 16 + Math.floor(Math.random() * 10) : 1 + Math.floor(Math.random() * 10); st.pk.push({ x: -40, code: Math.floor(Math.random() * 4), kg, w: 78 + kg * 1.2, h: 56 + kg * 0.5 }); st.spawn = Math.max(1.05, 1.6 - prog * 0.5) * (st.burst ? 0.9 : 1); }
         st.pk.forEach(p => { if (!p.gone) { p.x += speed * dt; if (p.x - 30 > ZONE[1]) { p.gone = 'miss'; st.err++; st.shout = '漏了一个！'; st.shoutT = 1.4; } } else if (p.fly != null) { const dur = 0.45 + p.kg * 0.02; p.fly += dt / dur * 0.6; if (p.fly >= 0.6 && !p.landed) { p.landed = true; st.shake = Math.max(st.shake, 0.08 + p.kg / 25 * 0.25); SFX.thud(p.kg / 25); } } });
         st.pk = st.pk.filter(p => !p.gone || (p.fly != null && p.fly < 0.6) || (p.gone === 'bad' && (p.fade = (p.fade || 0) + dt) < .5));
         st.fatigue = Math.min(100, st.fatigue + dt * 1.2);
@@ -94,8 +95,8 @@
           ctx.globalAlpha = p.gone === 'bad' ? 0.5 : 1;
           ctx.save(); ctx.translate(x, y + p.h / 2); ctx.rotate(rot);
           rr(ctx, -p.w / 2, -p.h / 2, p.w, p.h, 3, p.kg > 15 ? '#a8824f' : '#c9a26b'); ctx.fillStyle = '#e9d9a8'; ctx.fillRect(-p.w / 2, -3, p.w, 6);
-          ctx.fillStyle = BINS[p.code].c; ctx.fillRect(-14, -p.h / 2 + 4, 28, 18); txt(ctx, String(p.code + 1), 0, -p.h / 2 + 18, 14, '#fff', 'center');
-          txt(ctx, p.kg + 'kg', 0, p.h / 2 - 4, 11, p.kg > 15 ? '#7a1a10' : INK, 'center');
+          ctx.fillStyle = BINS[p.code].c; ctx.fillRect(-24, -p.h / 2 + 4, 48, 34); ctx.strokeStyle = INK; ctx.lineWidth = 2.5; ctx.strokeRect(-24, -p.h / 2 + 4, 48, 34); ctx.font = `900 32px ${FONT}`; ctx.textAlign = 'center'; ctx.lineJoin = 'round'; ctx.lineWidth = 6; ctx.strokeStyle = '#111'; ctx.strokeText(String(p.code + 1), 0, -p.h / 2 + 33); ctx.fillStyle = '#fff'; ctx.fillText(String(p.code + 1), 0, -p.h / 2 + 33);
+          txt(ctx, p.kg + 'kg', 0, p.h / 2 - 5, 12, p.kg > 15 ? '#7a1a10' : INK, 'center');
           ctx.restore();
           ctx.globalAlpha = 1;
         });
@@ -141,6 +142,7 @@
       const offK = keys(e => { if (e.code === 'Space') { stopCar(); return true; } if (e.key === 'p' || e.key === 'P') { togglePhone(); return true; } });
       bar.querySelector('#mg-stop').onclick = stopCar; bar.querySelector('#mg-phone').onclick = togglePhone;
       const finish = res => { if (st.done) return; st.done = true; offK(); stop(); setTimeout(() => resolve(res), 900); };
+      st.quit = () => finish({ completed:false, quit:true, hoursDone:Math.min(1, st.t / DUR) * 12, quality:0 });
       const stop = loop(dt => {
         st.t += dt; const prog = st.t / DUR;
         st.bored = Math.max(0, Math.min(100, st.bored + (st.phone ? -7 : 3) * dt)); st.boredSum += st.bored * dt;
@@ -329,6 +331,7 @@
       drawBar();
       const DUR = o.dur || 30;
       const finish = res => { if (st.done) return; st.done = true; offK(); window.removeEventListener('keyup', upK); window.removeEventListener('pointerup', upM); stop(); setTimeout(() => resolve(res), 1200); };
+      st.quit = () => finish({ completed:false, quit:true, hoursDone:(st.phase === 'cut' ? Math.min(1, st.t / DUR) : 0) * 11, quality:0 });
       const drawSlicePoly = (g, sl, ox, oy) => {
         g.beginPath();
         for (let n = 0; n < ROWS; n++) g.lineTo(sl.L[n] - sl.fromX + ox + sl.jag[n], rowY(n) - TOPY + oy);
@@ -438,7 +441,7 @@
   MG.antigen = function (root, o) {
     return new Promise(resolve => {
       const { ctx, bar } = setup(root, '药厂夜班 · 插条', '滑块走到右边绿色插口时按 <kbd>空格</kbd> 插进底壳；碰到中间红色区就是废条。车间里没有钟，手机被收走了。');
-      bar.innerHTML = `<button class="mg-btn" id="mg-ins">插条（空格）</button><span id="mg-touch"></span><button class="mg-btn ghost" id="mg-quit">不干了（按小时结钱）</button>`;
+      bar.innerHTML = `<button class="mg-btn" id="mg-ins">插条（空格）</button><span id="mg-touch"></span><button class="mg-btn ghost" id="mg-quit">不干了，走人</button>`;
       const DUR = o.dur || 45;
       const perf = o.perf || { win: 1, shake: 0.6, speed: 1 };
       const GZ = Math.min(0.32, 0.18 * perf.win), G0 = 1 - GZ; // 绿色插口宽度

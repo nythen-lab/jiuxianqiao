@@ -11,7 +11,7 @@
   // 先按「至少 1200×760 的逻辑尺寸」算一个缩放 s，然后舞台的逻辑宽高 = 窗口 / s，正好铺满。
   // 游戏主界面是弹性布局，跟着逻辑宽高走；标题/选人/漫画/结局仍按 1280×800 设计，在舞台里居中再缩一次。
   function fit() {
-    const iw = innerWidth, ih = innerHeight;
+    const iw = document.documentElement.clientWidth || innerWidth, ih = document.documentElement.clientHeight || innerHeight;
     // v1.0 手机竖屏：宽屏舞台缩到 0.3 倍没法看，竖屏改走一套单列布局
     const portrait = iw < 800 && ih > iw * 1.12;
     const s = portrait ? Math.max(0.7, Math.min(1.5, iw / 440)) : Math.max(0.5, Math.min(1.25, Math.min(iw / 1200, ih / 760)));
@@ -343,6 +343,7 @@
     }
     if (S.loc === 'inn' || S.loc === 'netcafe' || S.loc === 'dormtower' || S.loc === 'home') {
       if (G.bedValid()) { const L = C.lodging.find(l => l.id === S.bed.id); h += `<div class="window">已付钱：${L.name}（到 ${G.clock(S.bed.until)}）</div>`; }
+      if (S.loc === 'netcafe' && window.NET) A2.push(btn('netsurf', '上网：论坛 · 炒股 · 找活 · 视频 · 电影', `会员卡剩 ${NET.fmtMin(NET.st().min)} · 1 小时 ¥4 · 看帖、发帖、开户炒股`, 'gold'));
       if (S.loc === 'netcafe') { const g = C.netcafe.game; A2.push(btn('netgame', g.name, `¥${g.price} · 2 小时 · 精神+${g.mental} · 体力${g.stamina} · 饱腹${g.hunger}`)); }
       if (S.loc === 'inn' && C.room) {
         if (G.roomOwned()) { const left = G.roomDaysLeft(); A2.push(btn('room', '我的房间', `${left > 0 ? `月租还剩 ${left} 天` : '⚠️ 房租到期了'} · 花草 ${(S.room.pots || []).filter(p => !p.dead).length} 盆`, 'gold'));
@@ -363,7 +364,7 @@
     }
     if (S.loc === 'clinic' && open) C.clinicServices.forEach(sv => A2.push(btn('clinic:' + sv.id, sv.name, `¥${sv.price} · ${Math.round(sv.minutes / 6) / 10} 小时 · 体力+${sv.stamina}${sv.mental ? ` · 精神+${sv.mental}` : ''}${sv.clearDebuff ? ' · 治腰酸背痛' : ''}`)));
     if (S.loc === 'agency' && open) {
-      C.agencyServices.forEach(sv => { const c = (S.certs || {})[sv.id]; A2.push(btn('agency:' + sv.id, sv.name, c ? (c.done ? '已经办下来了' : `办理中，第 ${c.ready} 天来拿`) : `¥${sv.price} · ${sv.days} 天出证${sv.needCleanRecord ? ' · 要求无案底' : ''}`, c ? 'dim' : '')); });
+      C.agencyServices.forEach(sv => { const c = (S.certs || {})[sv.id]; A2.push(btn('agency:' + sv.id, sv.name, window.CERT ? CERT.cardSub(sv) : '', c ? 'dim' : '')); });
       A2.push(btn('board', '看看白板上的工价', '15 分钟 · 心里有个数'));
     }
     if (S.loc === 'bank') {
@@ -761,8 +762,8 @@
     if (k === 'shop') return UI.openClothesShop();
     if (k === 'sell') { UI._shopTab = 'sell'; return UI.openClothesShop(); }
     if (k === 'borrow') return UI.borrowFlow();
-    if (k === 'scrap') return act(async () => { const r = G.scrap(); await FX.micro('scrap', { money: r.money }); await UI.modal({ title: '捡瓶子', bg: A.placeImg(S.loc, G.hourF()), html: `<p>${r.line}</p><p class="eff"><span class="up">钱 +${r.money}</span> <span class="down">体力 ${C.broke.scrap.stamina}</span> <span class="down">干净 ${C.broke.scrap.clean}</span></p>`, buttons: [{ text: '把蛇皮袋叠好' }] }); });
-    if (k === 'oddjob') return act(async () => { const r = G.oddjob(); if (r.ok) await FX.micro('oddjob'); await UI.modal({ title: r.ok ? '换了一顿饭' : '老板没要', bg: A.IMG.place('food'), html: r.ok ? `<p>${r.line}</p><p class="eff"><span class="up">饱腹 +${C.broke.oddjob.hunger}</span> <span class="down">体力 ${C.broke.oddjob.stamina}</span></p>` : `<p>${r.line}</p><p class="muted">今天就别再问了，明天再来试试。</p>`, buttons: [{ text: r.ok ? '抹抹嘴' : '走吧' }] }); });
+    if (k === 'scrap') return act(async () => { let gres = null; if (window.GP) { try { gres = await GP.play('scrap', { bg: A.placeImg(S.loc, G.hourF()) }); } catch (e) { gres = null; } } const real = gres && !gres.auto && !gres.fallback; const mult = real ? Math.round(GP.perfMult(gres.quality) / 1.045 * (gres.quit && gres.quitPay ? gres.quitPay.frac : 1) * 100) / 100 : null; const r = G.scrap(mult); if (!real) await FX.micro('scrap', { money: r.money }); r.gres = real ? gres : null; r.mult = mult; await UI.modal({ title: '捡瓶子', bg: A.placeImg(S.loc, G.hourF()), html: `<p>${r.line}</p>${r.gres ? `<p class="gig-calc">手艺 ${GP.grade(r.gres.quality).w} · 瓶子倍率 ×${r.mult}</p><ul class="gig-lines">${(r.gres.lines || []).map(x => `<li>${x}</li>`).join('')}</ul>` : ''}<p class="eff"><span class="up">钱 +${r.money}</span> <span class="down">体力 ${C.broke.scrap.stamina}</span> <span class="down">干净 ${C.broke.scrap.clean}</span></p>`, buttons: [{ text: '把蛇皮袋叠好' }] }); });
+    if (k === 'oddjob') return act(async () => { const r = G.oddjob(); let gres = null; if (r.ok && window.GP) { try { gres = await GP.play('oddjob', { bg: A.IMG.place('food') }); } catch (e) { gres = null; } } const real = gres && !gres.auto && !gres.fallback; if (real) { const m = gres.quit && gres.quitPay ? gres.quitPay.frac : Math.round((0.75 + 0.4 * gres.quality) * 100) / 100; const dh = Math.round(C.broke.oddjob.hunger * (m - 1)); if (dh) G.change({ hunger: dh }); r.gres = gres; r.dh = dh; } if (r.ok && !real) await FX.micro('oddjob'); await UI.modal({ title: r.ok ? '换了一顿饭' : '老板没要', bg: A.IMG.place('food'), html: r.ok ? `<p>${r.line}</p>${r.gres ? `<p class="gig-calc">手艺 ${GP.grade(r.gres.quality).w}</p><ul class="gig-lines">${(r.gres.lines || []).map(x => `<li>${x}</li>`).join('')}</ul>` : ''}<p class="eff"><span class="up">饱腹 +${C.broke.oddjob.hunger + (r.dh || 0)}</span> <span class="down">体力 ${C.broke.oddjob.stamina}</span></p>` : `<p>${r.line}</p><p class="muted">今天就别再问了，明天再来试试。</p>`, buttons: [{ text: r.ok ? '抹抹嘴' : '走吧' }] }); });
     if (k === 'karaoke') return act(async () => { const R = C.riverside.karaoke; if (S.money < R.price) return UI.toast('钱不够。', 'bad'); S.money -= R.price; G.advance(R.minutes); G.change({ mental: R.mental }); G.log(R.text); await FX.micro('karaoke'); UI.toast(R.text); });
     if (k === 'fish') return act(async () => { const R = C.riverside.fish; await FX.micro('fish'); G.advance(R.minutes); G.change({ mental: R.mental, stamina: R.stamina }); G.log(R.text); const n = Math.random() < 0.5 ? G.pickNpc('riverside') : null; if (n) await UI.talk(n, '凉水河边'); else UI.toast(R.text); });
     if (k === 'wait30') return act(async () => { const f = S.time; G.advance(30); await FX.micro('wait', { from: f, to: S.time }); });
@@ -792,10 +793,11 @@
       await UI.eatMoment(B, { delta: { hunger: B.hunger, mental: B.mental, stamina: B.stamina || 0 } });
       const n = G.pickNpc('bar'); if (n) await UI.talk(n, '烧烤摊上');
     });
+    if (k === 'netsurf') return window.NET.open();
     if (k === 'netgame') return act(async () => { const r = G.netGame(); if (r.err) return UI.toast(r.err, 'bad'); await FX.micro('netgame'); await UI.modal({ title: '通宵网吧', bg: A.IMG.place('netcafe'), html: `<p>${r.g.text}</p>${effText({ mental: r.g.mental, stamina: r.g.stamina, hunger: r.g.hunger, money: -r.g.price })}` }); });
     if (k === 'scratch') return act(async () => { UI._beatVerb = '刮到'; await UI.scratchFlow(); });
     if (k === 'clinic') return act(async () => { const r = G.clinic(v); if (r.err) return UI.toast(r.err, 'bad'); await FX.micro('clinic'); await UI.modal({ title: '村卫生室', bg: A.IMG.place('clinic'), html: `<p>${r.sv.text}</p>${effText({ stamina: r.sv.stamina, mental: r.sv.mental, hunger: r.sv.hunger, money: -r.sv.price })}` }); });
-    if (k === 'agency') return act(async () => { const sv = C.agencyServices.find(x => x.id === v); if ((S.certs || {})[v]) return UI.toast((S.certs[v].done ? '已经办下来了。' : `还在办，第 ${S.certs[v].ready} 天来拿。`)); const go = await UI.modal({ title: sv.name, bg: A.IMG.place('agency'), html: `<p>${sv.text}</p><p>¥${sv.price} · ${sv.days} 天后拿。</p>`, buttons: [{ text: `交钱（¥${sv.price}）`, disabled: S.money < sv.price }, { text: '算了', cls: 'ghost' }] }); if (go === 1) return; const r = G.agencyBuy(v); if (r.err) UI.toast(r.err, 'bad'); else { await FX.micro('agency', { fee: sv.price }); UI.toast('交了钱，等着拿证'); } });
+    if (k === 'agency') return act(async () => { const sv = C.agencyServices.find(x => x.id === v); if ((S.certs || {})[v]) return UI.toast((S.certs[v].done ? '已经办下来了。' : `还在办，还有 ${Math.max(0, S.certs[v].ready - G.dayNum())} 天（第 ${S.certs[v].ready} 天来拿）。`)); if (sv.exam && window.CERT) return CERT.start(v); const go = await UI.modal({ title: sv.name, bg: A.IMG.place('agency'), html: `<p>${sv.text}</p><p>¥${sv.price} · ${sv.days} 天后拿。</p>`, buttons: [{ text: `交钱（¥${sv.price}）`, disabled: S.money < sv.price }, { text: '算了', cls: 'ghost' }] }); if (go === 1) return; const r = G.agencyBuy(v); if (r.err) UI.toast(r.err, 'bad'); else { await FX.micro('agency', { fee: sv.price }); UI.toast('交了钱，等着拿证'); } });
     if (k === 'board') return act(async () => { const t = G.agencyBoard(); await FX.micro('board'); await UI.modal({ title: '白板', bg: A.IMG.place('agency'), html: `<p>${t}</p>` }); });
     if (k === 'chat') return act(async () => { S.flags.chatKey = S.offers.key; G.advance(30); await FX.micro('chat'); const n = G.pickNpc('any'); if (n) await UI.talk(n, '路口的台阶上'); });
     if (k === 'rent') return act(async () => { const r = G.rentRoom(); if (r.err) return UI.toast(r.err, 'bad'); await FX.micro('rent'); UI.toast('房租交好了'); });
@@ -860,7 +862,7 @@
     let head = res.completed ? '下班了' : res.fired ? '被开除了' : '跑路了';
     let body = res.completed ? `<p>干完了一整班，拿到 <b>¥${out.pay}</b>${res.fines ? `（扣了 ${res.fines} 元）` : ''}。</p>${res.quality != null ? `<p>干活质量 <b>${Math.round(res.quality * 100)}%</b>${out.bonus ? `，${out.bonus > 0 ? `组长多给了 ¥${out.bonus}` : `干得不好，扣了 ¥${-out.bonus}`}` : ''}${out.skillPay ? `，熟手补贴 +¥${out.skillPay}` : ''}。</p>` : ''}${res.summary ? `<p class="muted">${res.summary}</p>` : ''}` :
       res.fired ? `<p>“你别干了！”${j.quitPay === 'hourly' ? `厂里按小时结钱：干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。` : '一分钱也没拿到。'}</p>` :
-      `<p>${j.quitPay === 'hourly' ? `你走了。干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。（厂里的规矩：头一个小时不算钱）` : '你借口上厕所跑了。中途跑路就等于白干。'}</p>`;
+      `<p>${out.quitLine || '你走了。'}${out.pay > 0 ? `结了 <b>¥${out.pay}</b>（整班原本能拿 ¥${out.quitFull || 0}）。` : '<b>一分钱也没给。</b>'}</p>`;
     if ((out.meals || []).length) body += `<p class="why">${out.meals.map(m => `管的饭：${m.name}（${m.tier === '好' ? '实在' : m.tier === '差' ? '凑合不起来' : '凑合'}，饱腹 +${m.got}）`).join('；')}。收工时饱腹 ${out.hungerEnd}。</p>`;
     if (out.cut) body += `<p class="why">中介从工钱里抽走了 <b>¥${out.cut}</b>${out.gross ? `（原本 ¥${out.gross}）` : ''}。</p>`;
     if (out.delayed) body += `<p class="why bad">工钱 ¥${out.delayed} 没当场给：“过两天一起结。”（会自动到账，但这几天手头更紧）</p>`;
@@ -881,13 +883,12 @@
     const FALLBACK = () => ({ completed: true, quality: 0.6, mentalMult: 1, fines: 0, fallback: true });
     return UI.modal({ cls: 'mgmodal', wide: true, bg: jb ? A.IMG.job(jb.id) : null, html: '<div id="mgroot"></div>', buttons: [], onShow: (m, close) => {
       const root = m.querySelector('#mgroot'); let settled = false, t0 = Date.now(); window.MG_HB = 0; if (window.Music) Music.setTrack('work');
-      const stuckBtn = document.createElement('button'); stuckBtn.className = 'btn sm mg-skip' + (first ? ' hidden' : ''); stuckBtn.textContent = '跳过（按一般水平结算）▸'; stuckBtn.id = 'mg-skip';
       const fin = (r, note) => { if (settled) return; settled = true; clearInterval(wd); if (window.Music) Music.setTrack('street'); window.MG_KILL = performance.now() + 1; window.MG_FAIL = null; if (window.MG_CUR_CLEAN) window.MG_CUR_CLEAN(); if (note) UI.toast(note); close(r); };
-      stuckBtn.onclick = () => { fin(FALLBACK(), '这一段按一般水平结算了。'); };
-      m.appendChild(stuckBtn);
       window.MG_FAIL = () => fin(FALLBACK(), '这一段出了点小状况，按一般水平结算了。');
-      // 看门狗：第一次玩 25 秒后也出现“跳过”；画面停住超过 3 秒也出现
-      const wd = setInterval(() => { const el = Date.now() - t0; if (first && el > 25000) stuckBtn.classList.remove('hidden'); if (el > 3000 && (!window.MG_HB || performance.now() - window.MG_HB > 3000)) { stuckBtn.classList.remove('hidden'); stuckBtn.textContent = '好像卡住了？点这里继续 ▸'; } }, 700);
+      // v1.0.2：不再有“跳过”按钮。只有画面真的停了 12 秒以上，才自动兜底结算；正常出口只有游戏里的「不干了，走人」
+      const wd = setInterval(() => { const el = Date.now() - t0; if (el > 12000 && (!window.MG_HB || performance.now() - window.MG_HB > 12000)) fin(FALLBACK(), '这一段出了点小状况，按一般水平结算了。'); }, 1500);
+      // Add an exit without touching protected games' controls or simulation.
+      root.__quitJob = () => { const st = MG.cur || {}; if (typeof st.quit === 'function') return st.quit(); const dur = (opts && opts.dur) || ({ courier:40, guard:40, food:30, mover:42, green:70, waiter:42, stage:42 }[type] || 42); const span = jb ? ((parseInt(jb.end)*60+Number(jb.end.slice(3))-parseInt(jb.start)*60-Number(jb.start.slice(3))+1440)%1440) / 60 : 9; fin({ completed:false, quit:true, hoursDone:Math.max(0, Math.min(1, (st.t || 0) / dur)) * span, quality:0 }); };
       let p; try { p = MG[type](root, opts); } catch (e) { console.error(e); fin(FALLBACK(), '这一段出了点小状况，按一般水平结算了。'); return; }
       Promise.resolve(p).then(r => fin(r), e => { console.error(e); fin(FALLBACK(), '这一段出了点小状况，按一般水平结算了。'); });
     } });
@@ -1136,7 +1137,7 @@
   UI.sheet = function () {
     const S = G.S(), I = G.identity(), pr = G.goalProgress();
     const rel = G.npcList().map(n => `<li class="relrow" data-bio="${n.key}" title="点开看人物小传">${n.name} <span class="aff">${'♥'.repeat(Math.round(S.npc[n.key].aff / 20))}</span> ${Math.round(S.npc[n.key].aff)} <small class="stage">${UI.trustStage(S.npc[n.key].aff)}</small></li>`).join('');
-    const db = S.debuffs.filter(d => d.until >= G.dayNum()).map(d => `<span class="chip warn">${C.debuffs[d.id].name}（到第${d.until}天）</span>`).join('') || '<span class="muted">无</span>';
+    const db = S.debuffs.filter(d => d.until >= G.dayNum()).map(d => `<span class="chip ${C.debuffs[d.id].good ? 'good' : 'warn'}">${C.debuffs[d.id].good ? '✨ ' : ''}${C.debuffs[d.id].name}（到第${d.until}天）</span>`).join('') || '<span class="muted">无</span>';
     UI.modal({ title: '人物卡', wide: true, html: `<div class="sheet">
       <div class="sh-l"><div class="pt big">${A.portrait(A.playerLook())}</div><div class="sheet-outfit">${A.outfitBody(A.playerLook(), G.outfit(), { w: 140, h: 210 })}</div><h3>${I.name} · ${I.age}岁</h3><p class="tag">${I.tag}</p>${I.profile ? `<button class="btn sm" id="my-bio">📖 人物小传</button>` : ''}
         <div class="recbox ${G.hasRecord() ? 'bad' : 'ok'}" id="sheet-record"><b>${C.theft.recordName}：${G.hasRecord() ? `有（${S.record.count} 次）` : '无，清清白白'}</b>

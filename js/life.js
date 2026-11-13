@@ -17,7 +17,7 @@
   G.age = () => (G.identity().age || 30) + Math.floor((G.dayNum() - 1) / L.ageYearDays);
   G.isFemale = () => G.identity().id === 'azhen' || !!G.identity().female;
   { const mg = G.migrate; G.migrate = function () { mg(); const s = SS(); if (s) { LIFE.st(); s.flags = s.flags || {}; // v1.0.1：旧存档里按天数解锁的礼堂/幼儿园，改成要等剧情
-      if (s.unlocked) { const l = s.life; if (!s.flags.hallOpen && !(l.partner && l.partner.state === 'married')) delete s.unlocked['place:hall']; if (!s.flags.kinderOpen && !l.kid) delete s.unlocked['place:kinder']; } } }; }
+      if (s.unlocked) { const l = s.life; s.unlocked['place:hall'] = s.unlocked['place:hall'] || 1; if (!s.flags.kinderOpen && !l.kid) delete s.unlocked['place:kinder']; } } }; }
   { const ng = G.newGame; G.newGame = function (id) { const r = ng(id); LIFE.st(); return r; }; }
   LIFE.funds = () => SS().money + LIFE.st().bank;
   LIFE.pay = amt => { if (LIFE.funds() < amt) return false; const s = SS(), l = LIFE.st(); const c = Math.min(s.money, amt); s.money -= c; l.bank -= (amt - c); return true; };
@@ -35,8 +35,8 @@
     const s = SS(), l = LIFE.st(), p = l.partner, d = G.dayNum(); s.flags = s.flags || {}; const F = s.flags;
     if (p && p.state === 'dating' && p.aff >= 70 && LIFE.canMarry() && !F.hallOpen) {
       F.hallOpen = d; openPlace('hall'); const w = LIFE.partnerWord();
-      G.log(`${p.name}说，路过幸福礼堂的时候，看了好一会儿。`, 'good');
-      G.queue.push({ title: `${p.name}提起了一件事`, text: `${p.name}低着头拨弄着衣角：“前两天我路过河对面那个幸福礼堂，红灯笼挂得老高……”${w}没往下说，你也没接话，可你们俩都听懂了。<p class="story">💒 地图上多了一处：幸福礼堂。</p>` });
+      G.log(`${p.name}说，路过幸福酒楼的时候，看了好一会儿。`, 'good');
+      G.queue.push({ title: `${p.name}提起了一件事`, text: `${p.name}低着头拨弄着衣角：“前两天我路过河对面那个幸福酒楼，红灯笼挂得老高……”${w}没往下说，你也没接话，可你们俩都听懂了。<p class="story">💒 幸福酒楼可以办你们的婚礼了。</p>` });
     }
     if (p && p.state === 'married' && !F.babyTalk && LIFE.kidsOk() && F.married && d - F.married >= 3) {
       F.babyTalk = d;
@@ -69,13 +69,13 @@
     // 生孩子
     if (l.pregnancy && d >= l.pregnancy.due) { l.pregnancy = null; const boy = Math.random() < .5; l.kid = { born: d, name: boy ? pick(['安安', '小宇', '乐乐']) : pick(['朵朵', '糯糯', '小满']), boy, enrolled: false, feeUntil: 0 }; G.change({ mental: 20 }); G.log(`${p.name}生下了孩子，是个${boy ? '男孩' : '女孩'}，取名${l.kid.name}。`, 'good'); G.addAlbum({ id: 'kid', kind: 'moment', title: '孩子出生了', caption: `${l.kid.name}，母子平安。` }); G.queue.push({ title: '孩子出生了', text: `产房外走廊的灯很亮。护士把孩子抱出来：“是个${boy ? '男孩' : '女孩'}，六斤四两。”你的手抖得接不住。孩子叫${l.kid.name}。`, eff: { mental: 20 } }); }
     // 冬天没厚衣服：每天早上提醒
-    const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) { const n = (s.flags.coldNag = (s.flags.coldNag || 0) + 1); if (n <= 3 || n % 2 === 0) G.queue.push({ title: '❄ 太冷了', text: C.winterNag.morning + `（最便宜的棉服 ¥${LIFE.cheapWarm()}）` }); }
+    const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) { const n = (s.flags.coldNag = (s.flags.coldNag || 0) + 1); if (!G.warmed() && (n <= 3 || n % 2 === 0)) G.queue.push({ title: '❄ 太冷了', text: C.winterNag.morning + `（最便宜的棉服 ¥${LIFE.cheapWarm()}）` }); }
     LIFE.emerge();
   };
   LIFE.cheapWarm = () => Math.min.apply(null, C.clothes.filter(c => c.warm).map(c => c.price));
 
   // 冬天缺衣服：状态条
-  { const cd = G.conds; G.conds = function () { const out = cd(); const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) out.push({ id: 'cold', icon: '🥶', label: '没有厚衣服', lv: 'warn', tip: `天冷，体力掉得更快、站在室外很快冻透。去服装店买件棉服（最便宜 ¥${LIFE.cheapWarm()}）` }); return out; }; }
+  { const cd = G.conds; G.conds = function () { const out = cd(); const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm && !G.warmed()) out.push({ id: 'cold', icon: '🥶', label: '没有厚衣服', lv: 'warn', tip: `天冷，体力掉得更快、站在室外很快冻透。去服装店买件棉服（最便宜 ¥${LIFE.cheapWarm()}）` }); return out; }; }
 
   // ================= 回家电话 =================
   G.callLines = function () {
@@ -96,7 +96,7 @@
 
   // ================= 鱼 =================
   LIFE.fishCount = () => LIFE.st().fish.length;
-  LIFE.gainFish = function () { const k = pick(C.fishKinds); const l = LIFE.st(); l.fish.push({ name: k.name, sell: ri(k.sell[0], k.sell[1]), hunger: k.hunger, mental: k.mental }); if (l.fish.length > 6) l.fish.shift(); return k; };
+  LIFE.gainFish = function (name) { const k = C.fishKinds.find(f => f.name === name) || pick(C.fishKinds); const l = LIFE.st(); l.fish.push({ name: k.name, sell: ri(k.sell[0], k.sell[1]), hunger: k.hunger, mental: k.mental }); if (l.fish.length > 6) l.fish.shift(); return k; };
 
   // ================= 面板 =================
   const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay'];
@@ -109,7 +109,9 @@
     // 冬天没厚衣服：横幅一直挂着
     { const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm) top += `<div class="cold-banner"><b>🥶</b><span>${C.winterNag.banner.replace('{p}', LIFE.cheapWarm())}</span>${loc !== 'clothes' ? '<button class="btn sm" data-golife="clothes">去服装店</button>' : ''}</div>`; }
     if (loc === 'bath' && open) {
-      C.bath.items.forEach(it => A2.push(btn('bath:' + it.id, it.name, `¥${it.price} · ${it.minutes} 分钟 · 体面+${it.dec} · 体力+${it.stamina} · 精神+${it.mental}${it.clear ? ' · 解酸痛' : ''}`, it.id === 'rub' ? 'gold' : '')));
+      { const win = G.season() && G.season().id === 'winter'; const cap = it => Math.max(0, G.decency(it) );
+        html += `<div class="bath-cards">${C.bath.items.map(it => { const lines = [`体面 +${it.dec}`, it.stamina ? `体力 +${it.stamina}` : '', it.mental ? `精神 +${it.mental}` : ''].filter(Boolean); const wb = win && (C.bath.winterBonus.ids || []).includes(it.id);
+          return `<button class="act bath-card ${it.id === 'rub' ? 'gold' : ''}" data-a="bath:${it.id}"><div class="bc-h"><i class="ic">${UI.actIcon('bath:' + it.id)}</i><b>${it.name}</b><span class="bc-p">¥${it.price} · ${it.minutes} 分钟</span></div><div class="bc-e">${lines.map(x => `<span class="${/体面/.test(x) ? 'dec' : 'up'}">${x}</span>`).join('')}</div>${it.perks.length ? `<ul class="bc-perks">${it.perks.map(x => `<li>${x}</li>`).join('')}</ul>` : `<p class="bc-note">${it.note}</p>`}</button>`; }).join('')}</div>`; }
       if (G.season() && G.season().id === 'winter') html += `<p class="muted">${C.bath.winterBonus.text}</p>`;
       html += `<p class="muted tiny">现在体面 ${G.decency()}。洗完体面会涨——能涨到多高，还要看身上穿的衣服。</p>`;
     }
@@ -196,7 +198,7 @@
           const g = gifts[gi]; if (!g) return; S.money -= g.price; p.gifts[g.id] = (p.gifts[g.id] || 0) + 1; await LIFE.pAct(p, { min: 10, aff: g.aff, mental: 3, lines: [`${LIFE.partnerWord()}接过${g.name.split('（')[0]}，翻来覆去看了好几遍，没说话，嘴角翘了起来。`], title: '送礼', noTime: false });
         }, lim);
         if (p.state === 'met') add(`说出口：想跟${LIFE.partnerWord()}好好处处`, async () => { await LIFE.confess(p); }, false);
-        if (p.state === 'dating' && S.flags.hallOpen) add('谈谈以后的事（婚礼）', async () => { await UI.modal({ title: '以后', bg: A.IMG.place('hall'), html: LIFE.card(p, 'smile', `<p>${C.partnerLines.proposeOk}</p>`) + `<p class="muted">要办婚礼，得去<b>幸福礼堂</b>订日子：彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price}～${L.weddings[2].price}。好感要到 70 以上（现在 ${Math.round(p.aff)}）。${LIFE.canMarry() ? '' : `<br>你们现在年纪还没到领证的时候。`}</p>` }); }, false);
+        if (p.state === 'dating' && S.flags.hallOpen) add('谈谈以后的事（婚礼）', async () => { await UI.modal({ title: '以后', bg: A.IMG.place('hall'), html: LIFE.card(p, 'smile', `<p>${C.partnerLines.proposeOk}</p>`) + `<p class="muted">要办婚礼，得去<b>幸福酒楼</b>订日子：彩礼 ¥${L.bride} + 酒席 ¥${L.weddings[0].price}～${L.weddings[2].price}。好感要到 70 以上（现在 ${Math.round(p.aff)}）。${LIFE.canMarry() ? '' : `<br>你们现在年纪还没到领证的时候。`}</p>` }); }, false);
         if (marry) add('一起坐一会儿（30 分钟）', async () => { await LIFE.pAct(p, { min: 30, aff: 1, mental: 6, lines: ['你们没说几句话，她把头靠在你肩上。屋里很安静。', '电视开着没人看。她给你剥了个橘子。', '“今天累不累？”“还行。”就这么两句，也让人心里踏实。'], title: '一起坐会儿' }); }, false);
         add('先回去了', null);
         const i = await UI.modal({ title: LIFE.title() + ' · ' + p.name, wide: true, bg: A.placeImg(loc, G.hourF()), html: `${LIFE.card(p, p.aff >= 50 ? 'smile' : 'neutral', `<p class="hearts">好感 <b>${hearts}</b> ${Math.round(p.aff)}</p>`)}<p class="muted">${lim ? `今天已经聊了好几回，让${LIFE.partnerWord()}歇歇。` : `${p.job}，${p.home}。`}</p>`, buttons: opts });
@@ -224,11 +226,11 @@
   LIFE.weddingFlow = function () {
     return UI.act(async () => {
       const S = SS(), l = LIFE.st(), p = l.partner;
-      if (!p) return UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: '<p>管事的大姐翻着台历：“新人呢？”你支吾了一下。她笑笑：“有对象了再来。”</p>' });
-      if (p.state === 'married') return UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: '<p>墙上还挂着你们那天的红绸子。</p>' });
-      if (p.state !== 'dating') return UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: `<p>还没跟${p.name}在一起呢，先把话说开。</p>` });
-      if (!LIFE.canMarry()) return UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: `<p>管事的大姐看了看你的身份证：“年纪还没到，领不了证。”</p><p class="muted">你今年 ${G.age()} 岁，要 ${L.minMarryAge[G.isFemale() ? 'f' : 'm']} 岁才行。先谈着，不着急。</p>` });
-      if (p.aff < 70) return UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: `<p>你站在红圆桌前想了半天，还是觉得——要等${p.name}真的点头那天。</p><p class="muted">好感要到 70（现在 ${Math.round(p.aff)}）：多相处、一起吃饭、送点小东西。</p>` });
+      if (!p) return UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: '<p>管事的大姐翻着台历：“新人呢？”你支吾了一下。她笑笑：“有对象了再来。”</p>' });
+      if (p.state === 'married') return UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: '<p>墙上还挂着你们那天的红绸子。</p>' });
+      if (p.state !== 'dating') return UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: `<p>还没跟${p.name}在一起呢，先把话说开。</p>` });
+      if (!LIFE.canMarry()) return UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: `<p>管事的大姐看了看你的身份证：“年纪还没到，领不了证。”</p><p class="muted">你今年 ${G.age()} 岁，要 ${L.minMarryAge[G.isFemale() ? 'f' : 'm']} 岁才行。先谈着，不着急。</p>` });
+      if (p.aff < 70) return UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: `<p>你站在红圆桌前想了半天，还是觉得——要等${p.name}真的点头那天。</p><p class="muted">好感要到 70（现在 ${Math.round(p.aff)}）：多相处、一起吃饭、送点小东西。</p>` });
       const W = L.weddings; const total = i => L.bride + W[i].price;
       const i = await UI.modal({ title: '订日子办婚礼', wide: true, bg: A.IMG.place('hall'), html: `<p>管事的大姐拿出价目表：“彩礼是你们两家的事，这里只管场地和酒席。”</p><p class="muted">彩礼 ¥${L.bride}（给${p.name}家里的心意，这是规矩）+ 酒席。现金 ¥${S.money} + 存折 ¥${l.bank}。</p>`, buttons: W.map((w, k) => ({ text: `${w.name} · 共 ¥${total(k)}`, disabled: LIFE.funds() < total(k) })).concat([{ text: '再攒攒', cls: 'ghost' }]) });
       const w = W[i]; if (!w) return; if (!LIFE.pay(total(i))) return UI.toast('钱不够。', 'bad');
@@ -294,11 +296,43 @@
       await UI.modal({ title: '存折', bg: A.placeImg('bank', G.hourF()), html: '<div id="bk"></div>', buttons: [{ text: '好了' }], onShow: (m, close) => {
         const draw = () => { m.querySelector('#bk').innerHTML = `<p class="bk-big">存折 <b>¥${l.bank}</b> <small>口袋里 ¥${S.money}</small></p><p class="muted">钱放进存折，小偷偷不走；买房首付、婚礼、月供都从这里出。</p>
           <p class="bk-int">利息：年利率 ${Math.round(L.interest.annual * 100)}%（游戏里一年 = 四季 ${L.interest.yearDays} 天），每天按存折余额入账。累计已得 <b>¥${l.interestTotal || 0}</b>，按现在的余额，每天约 <b>¥${(Math.min(l.bank, L.interest.capBank) * L.interest.annual / L.interest.yearDays).toFixed(2)}</b>。</p>
-          <ul class="bk-ledger">${(l.ledger || []).slice(-6).reverse().map(x => `<li><span>第 ${x.day} 天</span> ${x.kind === 'interest' ? '利息' : x.kind === 'in' ? '存入' : '取出'} <b class="${x.kind === 'out' ? 'down' : 'up'}">${x.kind === 'out' ? '-' : '+'}¥${x.amt}</b></li>`).join('') || '<li class="muted">还没有明细</li>'}</ul>
+          <ul class="bk-ledger">${(l.ledger || []).slice(-6).reverse().map(x => `<li><span>第 ${x.day} 天</span> ${x.note ? x.note : x.kind === 'interest' ? '利息' : x.kind === 'in' ? '存入' : '取出'} <b class="${x.kind === 'out' ? 'down' : 'up'}">${x.kind === 'out' ? '-' : '+'}¥${x.amt}</b></li>`).join('') || '<li class="muted">还没有明细</li>'}</ul>
           <div class="bk-row">${[100, 500, 1000].map(n => `<button class="btn sm" data-in="${n}" ${S.money < n ? 'disabled' : ''}>存 ¥${n}</button>`).join('')}<button class="btn sm" data-in="all" ${S.money < 1 ? 'disabled' : ''}>全存进去</button></div>
-          <div class="bk-row">${[100, 500, 1000].map(n => `<button class="btn sm ghost" data-out="${n}" ${l.bank < n ? 'disabled' : ''}>取 ¥${n}</button>`).join('')}<button class="btn sm ghost" data-out="all" ${l.bank < 1 ? 'disabled' : ''}>全取出来</button></div>`;
-          m.querySelectorAll('[data-in]').forEach(b => b.onclick = () => { const n = b.dataset.in === 'all' ? S.money : +b.dataset.in; if (n <= 0 || S.money < n) return; S.money -= n; l.bank += n; (l.ledger = l.ledger || []).push({ day: G.dayNum(), kind: 'in', amt: n }); FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
-          m.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { const n = b.dataset.out === 'all' ? l.bank : +b.dataset.out; if (n <= 0 || l.bank < n) return; l.bank -= n; S.money += n; (l.ledger = l.ledger || []).push({ day: G.dayNum(), kind: 'out', amt: n }); FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw(); });
+          <div class="bk-row bk-type"><label for="bk-in-amt">存多少</label><input id="bk-in-amt" class="bk-amt" data-amt="in" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="输入整数，最多 ¥${S.money}"><button class="btn sm ghost" data-max="in" ${S.money < 1 ? 'disabled' : ''}>最大</button><button class="btn sm primary" data-go="in">存入</button></div><p class="bk-err" data-err="in" role="alert"></p>
+          <div class="bk-row">${[100, 500, 1000].map(n => `<button class="btn sm ghost" data-out="${n}" ${l.bank < n ? 'disabled' : ''}>取 ¥${n}</button>`).join('')}<button class="btn sm ghost" data-out="all" ${l.bank < 1 ? 'disabled' : ''}>全取出来</button></div>
+          <div class="bk-row bk-type"><label for="bk-out-amt">取多少</label><input id="bk-out-amt" class="bk-amt" data-amt="out" type="text" inputmode="numeric" pattern="[0-9]*" enterkeyhint="done" autocomplete="off" placeholder="输入整数，最多 ¥${l.bank}"><button class="btn sm ghost" data-max="out" ${l.bank < 1 ? 'disabled' : ''}>最大</button><button class="btn sm primary" data-go="out">取出</button></div><p class="bk-err" data-err="out" role="alert"></p>`;
+          const err = (k, t, bad) => { const e = m.querySelector(`[data-err="${k}"]`), inp = m.querySelector(`[data-amt="${k}"]`); if (e) { e.textContent = t || ''; e.className = 'bk-err' + (t ? (bad ? ' bad' : ' hint') : ''); } if (inp) { inp.classList.toggle('bad', !!(t && bad)); if (t && bad) { inp.classList.remove('shake'); void inp.offsetWidth; inp.classList.add('shake'); } } };
+          const maxOf = k => k === 'in' ? S.money : l.bank;
+          // 校验：整数、大于 0、不超过上限；返回 {n} 或 {msg}
+          const check = (k, raw) => {
+            const t = String(raw == null ? '' : raw).replace(/[,\s，]/g, ''), mx = maxOf(k), verb = k === 'in' ? '存' : '取', what = k === 'in' ? '口袋里' : '存折里';
+            if (!t) return { msg: `先输入要${verb}多少钱。` };
+            if (/^[-+]/.test(t) && /^[-+]\d+$/.test(t)) return { msg: t[0] === '-' ? '金额不能是负数。' : '直接输入数字就行，不用加符号。' };
+            if (/^\d+[.．。]\d*$/.test(t)) return { msg: '只能是整数，不能带小数点。' };
+            if (!/^\d+$/.test(t)) return { msg: '只能输入数字 0–9，不要带字母或符号。' };
+            if (t.length > 9) return { msg: '这个数字太大了。' };
+            const n = parseInt(t, 10);
+            if (n <= 0) return { msg: '金额要大于 0。' };
+            if (n > mx) return { msg: mx < 1 ? `${what}一分钱都没有，${verb}不了。` : `${what}只有 ¥${mx}，${verb}不了 ¥${n}。` };
+            return { n };
+          };
+          const count = (from, to, el, pre) => { if (!el) return; if (window.FX && FX.fast && FX.fast()) { el.textContent = pre + to; return; } const t0 = performance.now(), D = 650; let ticks = 0; const step = now => { if (!el.isConnected) return; const k = Math.min(1, (now - t0) / D), e = 1 - Math.pow(1 - k, 3); el.textContent = pre + Math.round(from + (to - from) * e); const tk = Math.floor(k * 6); if (tk > ticks) { ticks = tk; try { FX.sfx && FX.sfx.play('coin'); } catch (x) { } } if (k < 1) requestAnimationFrame(step); }; requestAnimationFrame(step); };
+          const apply = (k, n) => {
+            const b0 = l.bank, p0 = S.money;
+            if (k === 'in') { S.money -= n; l.bank += n; } else { l.bank -= n; S.money += n; }
+            (l.ledger = l.ledger || []).push({ day: G.dayNum(), kind: k, amt: n }); FX.sfx && FX.sfx.play('coin'); G.advance(5); UI.render(); draw();
+            count(b0, l.bank, m.querySelector('.bk-big b'), '¥'); count(p0, S.money, m.querySelector('.bk-big small b'), '¥');
+            const big = m.querySelector('.bk-big'); if (big) { const chip = document.createElement('span'); chip.className = 'bk-chip ' + (k === 'in' ? 'up' : 'down'); chip.textContent = (k === 'in' ? '存入 +¥' : '取出 −¥') + n; big.appendChild(chip); setTimeout(() => chip.remove(), 1400); }
+            err(k, `${k === 'in' ? '已存入' : '已取出'} ¥${n}。`, false);
+          };
+          m.querySelectorAll('[data-in]').forEach(b => b.onclick = () => { const n = b.dataset.in === 'all' ? S.money : +b.dataset.in; const r = check('in', n); if (r.msg) return err('in', r.msg, true); apply('in', r.n); });
+          m.querySelectorAll('[data-out]').forEach(b => b.onclick = () => { const n = b.dataset.out === 'all' ? l.bank : +b.dataset.out; const r = check('out', n); if (r.msg) return err('out', r.msg, true); apply('out', r.n); });
+          m.querySelectorAll('[data-max]').forEach(b => b.onclick = () => { const k = b.dataset.max, inp = m.querySelector(`[data-amt="${k}"]`); inp.value = String(maxOf(k)); err(k, `${k === 'in' ? '口袋里' : '存折里'}最多 ¥${maxOf(k)}，已填好。`, false); try { FX.sfx && FX.sfx.play('click'); } catch (x) { } });
+          m.querySelectorAll('[data-go]').forEach(b => b.onclick = () => { const k = b.dataset.go, inp = m.querySelector(`[data-amt="${k}"]`); const r = check(k, inp.value); if (r.msg) { err(k, r.msg, true); inp.focus(); return; } apply(k, r.n); });
+          m.querySelectorAll('[data-amt]').forEach(inp => { const k = inp.dataset.amt;
+            inp.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); m.querySelector(`[data-go="${k}"]`).click(); } e.stopPropagation(); });
+            inp.addEventListener('input', () => { const v = inp.value.replace(/[,\s，]/g, ''); if (!v) return err(k, '', false); const r = check(k, v); err(k, r.msg || `${k === 'in' ? '存入' : '取出'} ¥${r.n}，点右边按钮确认。`, !!r.msg); });
+          });
         }; draw(); } });
     });
   };
@@ -341,22 +375,30 @@
     if (k === 'partner') return LIFE.partnerMenu();
     if (k === 'bath') return UI.act(async () => {
       const it = C.bath.items.find(x => x.id === v); if (!it) return; if (S.money < it.price) return UI.toast('钱不够。', 'bad');
-      S.money -= it.price; const win = G.season() && G.season().id === 'winter'; const dec0 = G.decency(); const e = { clean: it.clean, stamina: it.stamina + (win ? C.bath.winterBonus.stamina : 0), mental: it.mental + (win ? C.bath.winterBonus.mental : 0) };
-      G.advance(it.minutes); G.change(e); if (it.clear) S.debuffs = S.debuffs.filter(x => x.id !== 'sore'); G.log(`在澡堂${it.name}。`);
-      if (window.FX) await FX.micro('bath'); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff({ decency: G.decency() - dec0, stamina: e.stamina, mental: e.mental, money: -it.price })}` });
+      S.money -= it.price; const win = G.season() && G.season().id === 'winter' && (C.bath.winterBonus.ids || []).includes(it.id); const dec0 = G.decency(); const st0 = { sta: S.stats.stamina, men: S.stats.mental };
+      const had = { sore: !!G.debuff('sore'), chill: !!G.debuff('chill') };
+      const e = { clean: it.clean, stamina: it.stamina + (win ? C.bath.winterBonus.stamina : 0), mental: it.mental + (win ? C.bath.winterBonus.mental : 0) };
+      G.advance(it.minutes); G.change(e);
+      if (it.clear) S.debuffs = S.debuffs.filter(x => !it.clear.includes(x.id));
+      if (it.buff === 'loose') { S.debuffs = S.debuffs.filter(x => x.id !== 'warmed'); G.addDebuff('loose'); } else if (it.buff === 'warmed' && !G.debuff('loose')) G.addDebuff('warmed');
+      G.log(`在澡堂${it.name}。`);
+      const real = { decency: G.decency() - dec0, stamina: Math.round(S.stats.stamina - st0.sta), mental: Math.round(S.stats.mental - st0.men), money: -it.price };
+      const got = []; if (had.sore && it.clear) got.push('浑身酸痛解开了'); if (had.chill && it.clear) got.push('受的寒气散了'); if (it.buff === 'warmed') got.push(`「身子暖透」：到第 ${G.debuff('warmed') ? G.debuff('warmed').until : G.debuff('loose').until} 天不会受寒`); if (it.buff === 'loose') got.push(`「浑身松快」：到第 ${G.debuff('loose').until} 天，睡觉恢复更多、干活更省力`);
+      if (window.FX) await FX.micro('bath'); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff(real)}${(it.stamina && real.stamina < it.stamina && S.stats.stamina >= S.maxSta - .5) ? '<p class="muted tiny">体力已经满了，多的白搭。</p>' : ''}${(real.decency === 0 && it.dec > 0) ? '<p class="muted tiny">体面已经洗到这身衣服的上限了，再洗也涨不动。</p>' : ''}${got.length ? `<ul class="bath-got">${got.map(x => `<li>✨ ${x}</li>`).join('')}</ul>` : ''}` });
       const n = G.pickNpc('bath'); if (n && Math.random() < .3) await UI.talk(n, '澡堂里');
     });
     if (k === 'fish') return UI.act(async () => {
-      const R = C.riverside.fish; const res = window.FX ? await FX.micro('fish') : null; G.advance(R.minutes); G.change({ mental: R.mental, stamina: R.stamina }); G.log(R.text);
-      const hit = res === 'hit' || (res == null && Math.random() < .45);
-      if (hit) { const f = LIFE.gainFish(); UI.toast(`钓上来一条${f.name}！可以卖掉、炖了吃，也能送人。`); G.log(`钓到一条${f.name}。`, 'good'); G.addStamp && G.addStamp('fish', '鱼', '钓到'); }
+      const R = C.riverside.fish; let gres = null; if (window.GP) { try { gres = await GP.play('fish', { bg: A.placeImg('riverside', G.hourF()) }); } catch (e) { gres = null; } }
+      const res = (!gres || gres.auto || gres.fallback) && window.FX ? await FX.micro('fish') : null; G.advance(R.minutes); G.change({ mental: R.mental, stamina: R.stamina }); G.log(R.text);
+      const hit = (gres && !gres.auto && !gres.fallback) ? !!(!gres.quit && gres.stats && gres.stats.caught) : (res === 'hit' || (res == null && Math.random() < .45));
+      if (hit) { const f = LIFE.gainFish(gres && gres.stats && gres.stats.fish); UI.toast(`钓上来一条${f.name}！可以卖掉、炖了吃，也能送人。`); G.log(`钓到一条${f.name}。`, 'good'); G.addStamp && G.addStamp('fish', '鱼', '钓到'); }
       const n = Math.random() < 0.5 ? G.pickNpc('riverside') : null; if (n) await UI.talk(n, '凉水河边'); else if (!hit) UI.toast(R.text);
     });
     if (k === 'fishsell') return UI.act(async () => { const f = l.fish; if (!f.length) return UI.toast(C.fishUse.noFish); const sum = f.reduce((a, x) => a + x.sell, 0); S.money += sum; S.earned += sum; const n = f.length; l.fish = []; G.advance(10); FX.sfx && FX.sfx.play('coin'); G.log(`卖了 ${n} 条鱼，得 ¥${sum}。`, 'good'); await UI.modal({ title: '卖鱼', bg: A.IMG.place('food'), html: `<p>${C.fishUse.sellLine}</p>${eff({ money: sum })}` }); });
     if (k === 'fishcook') return UI.act(async () => { const c = C.fishUse.cook; const f = l.fish[0]; if (!f) return UI.toast(C.fishUse.noFish); if (S.money < c.price) return UI.toast('钱不够。', 'bad'); S.money -= c.price; l.fish.shift(); G.advance(c.minutes); G.change({ hunger: f.hunger, mental: f.mental }); await UI.eatMoment({ id: 'fish', name: `炖${f.name}汤`, dish: 'fish', price: 14, flavor: '汤是奶白的，鱼肉嫩，吃完整个人都暖了。', text: c.text }, { delta: { hunger: f.hunger, mental: f.mental } }); });
     if (k === 'fishgive') return UI.act(async () => { const who = LIFE.fishTargets(S.loc); const n = who[0]; if (!n || !l.fish.length) return UI.toast(C.fishUse.noFish); const f = l.fish.shift(); S.npc[n.key].aff = clamp(S.npc[n.key].aff + C.fishUse.gift.aff, 0, 100); G.advance(10); G.change({ mental: 3 }); G.log(`把一条${f.name}送给了${n.name}。`, 'good'); await UI.modal({ title: '送条鱼', bg: A.placeImg(S.loc, G.hourF()), html: `<div class="talk"><div class="pt">${A.portrait(n.look, { mood: 'smile' })}</div><div><b>${n.name}</b><p>${C.fishUse.gift.text}</p></div></div><p class="eff"><span class="up">好感 +${C.fishUse.gift.aff}</span></p>` }); });
     if (k === 'hallwed') return LIFE.weddingFlow();
-    if (k === 'hallpeek') return UI.act(async () => { G.advance(15); G.change({ mental: 1 }); await UI.modal({ title: '幸福礼堂', bg: A.IMG.place('hall'), html: '<p>圆桌一张挨一张，红桌布压着折痕。台上的幕布后面传来试麦的声音：“喂喂，一二三。”</p>' }); });
+    if (k === 'hallpeek') return UI.act(async () => { G.advance(15); G.change({ mental: 1 }); await UI.modal({ title: '幸福酒楼', bg: A.IMG.place('hall'), html: '<p>圆桌一张挨一张，红桌布压着折痕。台上的幕布后面传来试麦的声音：“喂喂，一二三。”</p>' }); });
     if (k === 'hallphoto') return UI.act(async () => { if (S.money < 60) return UI.toast('钱不够。', 'bad'); S.money -= 60; G.advance(40); G.change({ mental: 4 }); G.addAlbum({ id: 'photo_' + G.dayNum(), kind: 'moment', title: '合影', caption: '摄影师喊“一二三”，你们笑得有点僵。' }); await UI.modal({ title: '拍张合影', bg: A.IMG.place('hall'), html: '<p>“靠近点！再近点！”摄影师喊。快门响了。你们在照片里挨得很近。</p>' + eff({ mental: 4, money: -60 }) }); });
     if (k === 'salesview') return LIFE.salesView();
     if (k === 'salespeek') return UI.act(async () => { G.advance(15); G.change({ mental: 2 }); await UI.modal({ title: '沙盘', bg: A.placeImg('sales', G.hourF()), html: '<p>沙盘上的小楼亮着一排排小灯。销售员站在旁边没催你，只是说：“看看嘛，不要紧。”你伸手比划了一下，哪一扇窗会是自己的。</p>' + eff({ mental: 2 }) }); });

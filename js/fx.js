@@ -311,7 +311,7 @@
     return FX.micro('eat_' + tier, { cfg, dish: m, tier, kind });
   };
   // ================= 小互动框架 =================
-  // FX.micro(id, ctx) → Promise。第一次看完整（后半段才给跳过），之后随时能跳过
+  // FX.micro(id, ctx) → Promise。短流程完整播放，不提供跳过。
   FX.micro = function (id, cx) {
     const M = (cx && cx.cfg) || (C.micro || {})[id]; if (!M || fast()) return Promise.resolve(null);
     cx = cx || {}; const S = G.S(); S.flags = S.flags || {}; S.flags.seenMicro = S.flags.seenMicro || {};
@@ -322,17 +322,15 @@
       const AA = window.ART || window.A; const bg = cx.bg || (AA && AA.placeImg ? AA.placeImg(S.loc, G.hourF()) : '');
       ov.innerHTML = `<div class="mx-box"><div class="mx-bg" style="background-image:url(${bg})"></div><div class="mx-shade"></div>
         <div class="mx-title">${esc(M.title)}</div><div class="mx-stage"></div><div class="mx-lines"></div>
-        <button class="btn sm mx-skip${first ? ' hidden' : ''}" id="mx-skip">跳过 ▸</button><div class="mx-bar"><i style="animation-duration:${dur}ms"></i></div></div>`;
+        <div class="mx-bar"><i style="animation-duration:${dur}ms"></i></div></div>`;
       document.body.appendChild(ov);
       const st = ov.querySelector('.mx-stage'), ln = ov.querySelector('.mx-lines');
       let over = false; const timers = [];
       const later = (fn, ms) => { const t = setTimeout(() => { if (!over) fn(); }, ms); timers.push(t); return t; };
       const say = (t, cls) => { const p = document.createElement('p'); p.className = 'mx-l ' + (cls || ''); p.textContent = String(t).replace('{money}', cx.money != null ? cx.money : '').replace('{amount}', cx.amount != null ? cx.amount : ''); ln.appendChild(p); while (ln.children.length > 3) ln.firstChild.remove(); };
       const end = v => { if (over) return; over = true; timers.forEach(clearTimeout); ov.classList.add('out'); setTimeout(() => ov.remove(), 260); document.removeEventListener('keydown', kd, true); resolve(v == null ? 'done' : v); };
-      const kd = e => { if ((e.key === 'Escape' || e.key === ' ') && !ov.querySelector('.mx-skip').classList.contains('hidden')) { e.preventDefault(); e.stopPropagation(); end('skip'); } };
+      const kd = () => {};
       document.addEventListener('keydown', kd, true);
-      ov.querySelector('#mx-skip').onclick = () => end('skip');
-      if (first) later(() => ov.querySelector('.mx-skip').classList.remove('hidden'), dur * 0.6);
       const lines = cx.lines || M.lines || []; const seqLines = (arr, span, off) => arr.forEach((t, i) => later(() => say(t), (off || 0) + i * span / Math.max(1, arr.length)));
       const clockRun = () => { if (cx.from == null || cx.to == null) return; const c = document.createElement('div'); c.className = 'mx-clock'; st.appendChild(c); const steps = 24; for (let i = 0; i <= steps; i++) later(() => { c.textContent = G.clock(Math.round(cx.from + (cx.to - cx.from) * i / steps)); if (i % 4 === 0) SFX.play('tick'); }, 200 + i * (dur * 0.7) / steps); };
       const afterBeat = (A2, ms) => { ln.innerHTML = ''; st.innerHTML = `<div class="mx-sprite pop">${A2.sprite || ''}</div>`; SFX.play(A2.sfx); seqLines(A2.lines || [], ms * 0.7); later(() => end(), ms); };
