@@ -28,5 +28,22 @@ C.feasts = [
 {id:'reunion',name:'老朋友聚聚',price:88,min:150,mental:18,stamina:10,hunger:60,aff:8,day:13,dishes:['stew','dumpling','lamb'],lines:['“还记得第一次一起搬货吗？”一提起来，大家的话匣子就关不上了。','从老家聊到明天的活，再聊回小时候。菜凉了又热，谁也不急着走。']}
 ];
 })();
-// Spread destination labels in readable rows; coordinates are for the fictional illustrated map.
-(function(){const order=['corner','food','clothes','inn','bar','bank','bath','netcafe','lottery','clinic','agency','riverside','dormtower','temple','sales','hall','kinder','home'];CONFIG.townMap.walkPins = JSON.parse(JSON.stringify(CONFIG.townMap.pins));order.forEach((id,i)=>CONFIG.townMap.pins[id]=[[15,38,61,83][i%4],20+Math.floor(i/4)*17]);})();
+// Visual pins follow the painted streets. walkPins stay the older distances, so travel minutes do not change.
+(function () {
+  const M = CONFIG.townMap;
+  M.walkPins = JSON.parse(JSON.stringify(M.pins));
+  const view = {
+    corner: [50, 50], food: [28, 64], clothes: [14, 72], inn: [18, 24], bar: [24, 84],
+    bank: [66, 74], bath: [38, 72], netcafe: [82, 58], lottery: [74, 88], clinic: [62, 30],
+    agency: [92, 76], riverside: [78, 20], dormtower: [94, 42], temple: [10, 40],
+    sales: [8, 56], hall: [40, 84], kinder: [54, 90], home: [72, 48]
+  };
+  Object.keys(view).forEach(id => { if (M.pins[id]) M.pins[id] = view[id]; });
+  const notes = {};
+  (M.deco || []).forEach(d => { notes[d.label] = d.note; });
+  M.deco = [
+    { label: '冷库', x: 30, y: 8, note: notes['冷库'] || '' },
+    { label: '大桥 · 桥洞', x: 48, y: 11, note: notes['大桥 · 桥洞'] || '' },
+    { label: '工地', x: 86, y: 6, note: notes['工地'] || '' }
+  ];
+})();

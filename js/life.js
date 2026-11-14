@@ -18,7 +18,7 @@
   G.isFemale = () => G.identity().id === 'azhen' || !!G.identity().female;
   { const mg = G.migrate; G.migrate = function () { mg(); const s = SS(); if (s) { LIFE.st(); s.flags = s.flags || {}; // v1.0.1：旧存档里按天数解锁的礼堂/幼儿园，改成要等剧情
       if (s.unlocked) { const l = s.life; s.unlocked['place:hall'] = s.unlocked['place:hall'] || 1; if (!s.flags.kinderOpen && !l.kid) delete s.unlocked['place:kinder']; } } }; }
-  { const ng = G.newGame; G.newGame = function (id) { const r = ng(id); LIFE.st(); return r; }; }
+  { const ng = G.newGame; G.newGame = function (id, custom) { const r = ng(id, custom); if (r) LIFE.st(); return r; }; }
   LIFE.funds = () => SS().money + LIFE.st().bank;
   LIFE.pay = amt => { if (LIFE.funds() < amt) return false; const s = SS(), l = LIFE.st(); const c = Math.min(s.money, amt); s.money -= c; l.bank -= (amt - c); return true; };
   LIFE.canMarry = () => G.age() >= L.minMarryAge[G.isFemale() ? 'f' : 'm'] && (!LIFE.st().partner || LIFE.st().partner.age >= L.minMarryAge[G.isFemale() ? 'm' : 'f']);
@@ -99,7 +99,7 @@
   LIFE.gainFish = function (name) { const k = C.fishKinds.find(f => f.name === name) || pick(C.fishKinds); const l = LIFE.st(); l.fish.push({ name: k.name, sell: ri(k.sell[0], k.sell[1]), hunger: k.hunger, mental: k.mental }); if (l.fish.length > 6) l.fish.shift(); return k; };
 
   // ================= 面板 =================
-  const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay'];
+  const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay', 'folk'];
   LIFE.has = k => ACTS.includes(k);
   const ICON = { bath: '🛁', bankbook: '📒', life: '🌱', fishsell: '💴', fishcook: '🍲', fishgive: '🎁', partner: '💞', hallwed: '💒', hallpeek: '👀', hallphoto: '📸', salesview: '🏘️', salespay: '🧾', salespeek: '🪟', kinderenroll: '📝', kinderpick: '🎒', kinderfee: '🧾', kinderpeek: '🧸', homecook: '🍳', homefish: '🐟', homebaby: '👶', homechat: '💬', homestay: '🏡' };
   { const ai = UI.actIcon; UI.actIcon = id => ICON[id.split(':')[0]] || ai(id); }
@@ -144,6 +144,10 @@
     }
     // 她/他在这儿
     if (LIFE.partnerHere(loc)) A2.push(btn('partner', `${P.name}`, `${LIFE.title()} · 好感 ${Math.round(P.aff)} · 聊聊`, 'gold'));
+    if (window.CAST && S.idId === 'self') CAST.people.filter(p => p.place === loc).forEach(p => {
+      const r = (S.social && S.social.people && S.social.people[p.id]) || { friend: 0, bond: 'none', affection: 0 };
+      A2.push(btn('folk:' + p.id, p.name, r.friend ? `朋友 ${r.friend}${r.bond !== 'none' ? ' · ' + CAST.bondWord(r.bond) + ' ' + Math.round(r.affection) : ''}` : `${p.job} · 打个招呼`, 'gold'));
+    });
     return { acts: A2, html, top };
   };
   LIFE.fishTargets = loc => G.npcList().filter(n => (n.where || []).includes(loc) && SS().npc[n.key]);
@@ -166,7 +170,7 @@
   LIFE.onArrive = async function (loc) {
     const S = SS(), l = LIFE.st(), h = G.hourF();
     const sea = G.season(); if (sea && sea.id === 'winter' && !G.outfit().warm && (C.seasons.outdoorPlaces || []).includes(loc)) UI.toast(C.winterNag.toast, 'bad');
-    const M = L.meet; if (!l.met && G.dayNum() >= M.minDay && M.where.includes(loc) && l.lastMeetRoll !== G.dayNum()) {
+    const M = L.meet; if (S.idId !== 'self' && !l.met && G.dayNum() >= M.minDay && M.where.includes(loc) && l.lastMeetRoll !== G.dayNum()) {
       const win = loc === 'riverside' ? (h >= 17 || h < 1) : loc === 'food' ? ((h >= 11.5 && h < 14) || (h >= 17.5 && h < 20)) : (h >= 17 && h < 22);
       if (win && S.stats.mental >= 25) { l.lastMeetRoll = G.dayNum(); if (Math.random() < M.p || G.dayNum() >= M.minDay + 6) await LIFE.meet(loc); }
     }
@@ -369,10 +373,43 @@
   { const sp = UI.spot; UI.spot = function (s) { if (s.indexOf('partner:') === 0) return LIFE.partnerMenu(); return sp(s); }; }
 
   // ================= 行动分发 =================
+  LIFE.folkMenu = async function (id) {
+    const npc = window.CAST && CAST.person(id); if (!npc) return;
+    const S = SS(); const r = CAST.relOf(S, id);
+    const pref = (S.social && S.social.pref) || 'none';
+    const buttons = [{ text: `聊聊（20 分钟）· 朋友 ${r.friend}`, value: 'chat' }, { text: `请${npc.name}吃饭（¥30）`, value: 'meal', disabled: S.money < 30 }];
+    if (pref !== 'none' && (pref === 'any' || pref === npc.gender) && r.bond !== 'dating' && r.bond !== 'married') buttons.push({ text: '想多了解', value: 'court' });
+    if (r.bond === 'interested' && r.affection >= 50) buttons.push({ text: '把关系说清楚', value: 'commit' });
+    buttons.push({ text: '先这样', cls: 'ghost', value: 'no' });
+    const pick = await UI.modal({ title: npc.name, html: `<div class="talk"><div class="pt">${A.portrait(npc.look)}</div><div><b>${npc.name}</b> <small>${npc.age}岁 · ${npc.job}</small><p>朋友 ${r.friend}${r.bond !== 'none' ? ' · ' + CAST.bondWord(r.bond) + ' ' + Math.round(r.affection) : ''}</p><p class="muted">${pref === 'none' ? '你说过先不谈感情。聊天和吃饭都还在。' : '感情要你自己开口，没有安排好的对象。'}</p></div></div>`, buttons });
+    if (pick === 'chat' || pick === 'meal') {
+      if (pick === 'meal') { if (S.money < 30) return UI.toast('钱不够。', 'bad'); S.money -= 30; }
+      const out = CAST.chat(S, id);
+      G.advance(out.minutes || 20); G.change({ mental: out.mental || 2, hunger: pick === 'meal' ? 24 : 0 });
+      if (out.teach && out.teach.skill) G.gainXp(out.teach.skill, out.teach.xp);
+      if (out.teach && out.teach.phone) S.attrs.phone = Math.min(9, (S.attrs.phone || 0) + out.teach.phone);
+      await UI.modal({ title: '聊了聊', html: `<p>${pick === 'meal' ? '请吃了顿饭，花了 ¥30。' : '说了会儿话。'}朋友现在 ${out.friend}。</p>${out.teach ? `<p class="good">${out.teach.text}</p>` : ''}` });
+      return;
+    }
+    if (pick === 'court') {
+      const out = CAST.court(S, id, G.age());
+      if (!out.ok) return UI.toast(out.error === 'pref' ? '这不在你想认识的范围里。' : '现在不合适。', 'bad');
+      G.advance(20); G.change({ mental: 3 });
+      await UI.modal({ title: '多了解一点', html: `<p>你们把话往前说了一点。了解 ${out.affection}。这还不是在一起。</p>` });
+      return;
+    }
+    if (pick === 'commit') {
+      const out = CAST.commit(S, id);
+      if (!out.ok) return UI.toast(out.error === 'taken' ? '你已经有一段说清楚的关系。朋友还能继续来往。' : '还没到说清楚的时候。', 'bad');
+      const l = LIFE.st(); l.partner = out.partner; l.met = true; G.change({ mental: 10 });
+      await UI.modal({ title: '在一起了', html: `<p>你和${npc.name}把话说清楚了。婚礼还得你自己去订。</p>` });
+    }
+  };
   LIFE.doAct = function (k, v) {
     const S = SS(), l = LIFE.st();
     if (k === 'bankbook') return LIFE.bankFlow();
     if (k === 'partner') return LIFE.partnerMenu();
+    if (k === 'folk') return LIFE.folkMenu(v);
     if (k === 'bath') return UI.act(async () => {
       const it = C.bath.items.find(x => x.id === v); if (!it) return; if (S.money < it.price) return UI.toast('钱不够。', 'bad');
       S.money -= it.price; const win = G.season() && G.season().id === 'winter' && (C.bath.winterBonus.ids || []).includes(it.id); const dec0 = G.decency(); const st0 = { sta: S.stats.stamina, men: S.stats.mental };
@@ -384,7 +421,7 @@
       G.log(`在澡堂${it.name}。`);
       const real = { decency: G.decency() - dec0, stamina: Math.round(S.stats.stamina - st0.sta), mental: Math.round(S.stats.mental - st0.men), money: -it.price };
       const got = []; if (had.sore && it.clear) got.push('浑身酸痛解开了'); if (had.chill && it.clear) got.push('受的寒气散了'); if (it.buff === 'warmed') got.push(`「身子暖透」：到第 ${G.debuff('warmed') ? G.debuff('warmed').until : G.debuff('loose').until} 天不会受寒`); if (it.buff === 'loose') got.push(`「浑身松快」：到第 ${G.debuff('loose').until} 天，睡觉恢复更多、干活更省力`);
-      if (window.FX) await FX.micro('bath'); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff(real)}${(it.stamina && real.stamina < it.stamina && S.stats.stamina >= S.maxSta - .5) ? '<p class="muted tiny">体力已经满了，多的白搭。</p>' : ''}${(real.decency === 0 && it.dec > 0) ? '<p class="muted tiny">体面已经洗到这身衣服的上限了，再洗也涨不动。</p>' : ''}${got.length ? `<ul class="bath-got">${got.map(x => `<li>✨ ${x}</li>`).join('')}</ul>` : ''}` });
+      if (window.FX) await FX.micro('bath', { service: it.id, variant: (G.dayNum() + it.id.length) % 2 }); await UI.modal({ title: '老澡堂', bg: A.IMG.place('bath'), html: `<p>${it.text}</p>${win ? `<p class="muted">${C.bath.winterBonus.text}</p>` : ''}${eff(real)}${(it.stamina && real.stamina < it.stamina && S.stats.stamina >= S.maxSta - .5) ? '<p class="muted tiny">体力已经满了，多的白搭。</p>' : ''}${(real.decency === 0 && it.dec > 0) ? '<p class="muted tiny">体面已经洗到这身衣服的上限了，再洗也涨不动。</p>' : ''}${got.length ? `<ul class="bath-got">${got.map(x => `<li>✨ ${x}</li>`).join('')}</ul>` : ''}` });
       const n = G.pickNpc('bath'); if (n && Math.random() < .3) await UI.talk(n, '澡堂里');
     });
     if (k === 'fish') return UI.act(async () => {
@@ -394,7 +431,7 @@
       if (hit) { const f = LIFE.gainFish(gres && gres.stats && gres.stats.fish); UI.toast(`钓上来一条${f.name}！可以卖掉、炖了吃，也能送人。`); G.log(`钓到一条${f.name}。`, 'good'); G.addStamp && G.addStamp('fish', '鱼', '钓到'); }
       const n = Math.random() < 0.5 ? G.pickNpc('riverside') : null; if (n) await UI.talk(n, '凉水河边'); else if (!hit) UI.toast(R.text);
     });
-    if (k === 'fishsell') return UI.act(async () => { const f = l.fish; if (!f.length) return UI.toast(C.fishUse.noFish); const sum = f.reduce((a, x) => a + x.sell, 0); S.money += sum; S.earned += sum; const n = f.length; l.fish = []; G.advance(10); FX.sfx && FX.sfx.play('coin'); G.log(`卖了 ${n} 条鱼，得 ¥${sum}。`, 'good'); await UI.modal({ title: '卖鱼', bg: A.IMG.place('food'), html: `<p>${C.fishUse.sellLine}</p>${eff({ money: sum })}` }); });
+    if (k === 'fishsell') return UI.act(async () => { const f = l.fish; if (!f.length) return UI.toast(C.fishUse.noFish); const sum = f.reduce((a, x) => a + x.sell, 0); S.money += sum; S.earned += sum; if (G.noteWage) G.noteWage(sum, 'fish'); const n = f.length; l.fish = []; G.advance(10); FX.sfx && FX.sfx.play('coin'); G.log(`卖了 ${n} 条鱼，得 ¥${sum}。`, 'good'); await UI.modal({ title: '卖鱼', bg: A.IMG.place('food'), html: `<p>${C.fishUse.sellLine}</p>${eff({ money: sum })}` }); });
     if (k === 'fishcook') return UI.act(async () => { const c = C.fishUse.cook; const f = l.fish[0]; if (!f) return UI.toast(C.fishUse.noFish); if (S.money < c.price) return UI.toast('钱不够。', 'bad'); S.money -= c.price; l.fish.shift(); G.advance(c.minutes); G.change({ hunger: f.hunger, mental: f.mental }); await UI.eatMoment({ id: 'fish', name: `炖${f.name}汤`, dish: 'fish', price: 14, flavor: '汤是奶白的，鱼肉嫩，吃完整个人都暖了。', text: c.text }, { delta: { hunger: f.hunger, mental: f.mental } }); });
     if (k === 'fishgive') return UI.act(async () => { const who = LIFE.fishTargets(S.loc); const n = who[0]; if (!n || !l.fish.length) return UI.toast(C.fishUse.noFish); const f = l.fish.shift(); S.npc[n.key].aff = clamp(S.npc[n.key].aff + C.fishUse.gift.aff, 0, 100); G.advance(10); G.change({ mental: 3 }); G.log(`把一条${f.name}送给了${n.name}。`, 'good'); await UI.modal({ title: '送条鱼', bg: A.placeImg(S.loc, G.hourF()), html: `<div class="talk"><div class="pt">${A.portrait(n.look, { mood: 'smile' })}</div><div><b>${n.name}</b><p>${C.fishUse.gift.text}</p></div></div><p class="eff"><span class="up">好感 +${C.fishUse.gift.aff}</span></p>` }); });
     if (k === 'hallwed') return LIFE.weddingFlow();

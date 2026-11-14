@@ -23,19 +23,23 @@
       const t = today(); const bg = A.placeImg(s.loc, G0.hourF());
       // v1.0.2：每种零工是一个真正的小游戏（见 js/gp-*.js）；出岔子时退回老的小互动，按一般水平结算
       let res = null;
-      if (window.GP && GP.games[g.id]) { try { res = await GP.play(g.id, { bg, minutes: g.minutes, hours: g.minutes / 60 }); } catch (e) { console.error(e); res = null; } }
+      if (window.GP && GP.games[g.id]) { try { res = await GP.play(g.id, { bg, minutes: g.minutes, hours: g.minutes / 60, forceBrief: true, payNote: window.PAY ? PAY.gigNote(g) : null }); } catch (e) { console.error(e); res = null; } }
+      if (res && res.noPay) { await UI.modal({ title: g.name, bg, html: '<p>还没开始干活，这单没有工钱，也不占今天的次数。</p>', buttons: [{ text: '先去别处' }] }); return; }
       if (!res || res.fallback) { const cfg = Object.assign({}, g.micro); if (window.FX) await FX.micro('gig_' + g.id, { cfg, money: 0, bg }); res = Object.assign({ completed: true, quality: .62, lines: [] }, res || {}); }
       const q = clamp(res.quality == null ? .62 : res.quality, 0, 1), quit = !!res.quit;
-      const base = this.pay(g), mult = GP.perfMult(q); let m = quit ? Math.round(base * mult * (res.quitPay ? res.quitPay.frac : .45)) : Math.max(3, Math.round(base * mult)); const roll = Math.random(); let line = pick(g.lines), kind = 'normal';
-      if (q < .3) { kind = 'bad'; line = pick(g.bad); } else if (!quit && q >= .85 && roll < .45) { const tip = ri(3, 8); m += tip; kind = 'tip'; line = pick(g.tip); }
+      const base = this.pay(g), mult = GP.perfMult(q); const roll = Math.random(); let line = pick(g.lines), kind = 'normal', tip = 0;
+      if (q < .3) { kind = 'bad'; line = pick(g.bad); } else if (!quit && q >= .85 && roll < .45) { tip = ri(3, 8); kind = 'tip'; line = pick(g.tip); }
+      const settled = window.PAY ? PAY.settleGig({ base, mult, quit, frac: quit ? (res.quitPay ? res.quitPay.frac : 0.45) : 1, tip }) : null;
+      let m = settled ? settled.pay : (quit ? Math.round(base * mult * (res.quitPay ? res.quitPay.frac : .45)) : Math.max(3, Math.round(base * mult)) + tip);
       const frac = quit ? clamp((res.hoursDone || 0) / Math.max(.1, g.minutes / 60), .25, 1) : 1; const minutes = Math.round(g.minutes * frac);
       G0.advance(minutes, 'work'); G0.change({ stamina: Math.round(g.stamina * frac), mental: Math.round(g.mental * frac) + (q >= .85 ? 1 : 0) });
-      s.money += m; s.earned = (s.earned || 0) + m; s.gigTotal = (s.gigTotal || 0) + m; t.counts[g.id] = (t.counts[g.id] || 0) + 1; t.total++; t.money += m;
+      s.money += m; s.earned = (s.earned || 0) + m; if (m > 0 && G0.noteWage) G0.noteWage(m, 'gig'); s.gigTotal = (s.gigTotal || 0) + m; t.counts[g.id] = (t.counts[g.id] || 0) + 1; t.total++; t.money += m;
       G0.log(`${g.name}（${GP.grade(q).w}），挣了 ¥${m}。`, kind === 'bad' ? 'warn' : 'good');
       try { FX.sfx && FX.sfx.play('coin'); } catch (e) { }
       UI.toast(`${g.name} +¥${m}`);
       const gr = GP.grade(q), stars = '★'.repeat(gr.s) + '☆'.repeat(3 - gr.s);
-      const calc = `<p class="gig-calc">手艺 <b>${gr.w}</b> ${stars} · 基础 ¥${base} × <b>${mult.toFixed(2)}</b>${kind === 'tip' ? ' + 小费' : ''} = <b class="up">¥${m}</b>${quit ? (res.quitPay && res.quitPay.frac ? `（中途走人，只结 ${Math.round(res.quitPay.frac * 100)}%）` : '（中途走人，一分没给）') : ''}</p>`;
+      const ledger = settled ? settled.lines : [];
+      const calc = `<ul class="pay-lines">${ledger.map(x => `<li><span>${x.name}</span><b>${x.amt < 0 ? '−' : '+'}¥${Math.abs(x.amt)}</b></li>`).join('')}</ul><p class="pay-sum">手艺 <b>${gr.w}</b> ${stars} · 实发 <b class="up">¥${m}</b> · 上面加起来是 ¥${ledger.reduce((a, x) => a + x.amt, 0)}</p>`;
       const det = (res.lines || []).length ? `<ul class="gig-lines">${res.lines.map(x => `<li>${x}</li>`).join('')}</ul>` : '';
       await UI.modal({ title: g.name, bg, html: `<p>${line}</p>${calc}${det}${UI.effText({ money: m, stamina: Math.round(g.stamina * frac), mental: Math.round(g.mental * frac) })}<p class="muted tiny">干了 ${minutes} 分钟。今天零工已经挣了 <b>¥${t.money}</b>（${t.total}/${GG.dailyTotalCap} 次）。${kind === 'tip' ? ' 还收到一点小费。' : kind === 'bad' ? ' 今天手艺不太行，工钱打了折。' : ''}</p>`, buttons: [{ text: '收好钱' }] });
     }

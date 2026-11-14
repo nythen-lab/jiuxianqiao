@@ -4,7 +4,7 @@ window.CONFIG = window.CONFIG || {};
 
 CONFIG.settings = {
   title: "勇闯酒仙桥",
-  subtitle: "网页小样 v1.0.2",
+  subtitle: "网页小样 v1.0.3",
   openCalendar: true,       // true = 没有强制结算日；日历一直往前走
   // 软提示用（不强制结束）：建议体验天数，写在目标卡上
   softPaceTip: "没有天数上限，想玩多久玩多久。撑不住了才算输。",
@@ -12,11 +12,12 @@ CONFIG.settings = {
   arriveTime: "04:30",      // 第一天几点到达酒仙桥
 
   // 每小时自然消耗（醒着的时候）
-  perHourAwake: { stamina: -2.5, mental: -1, hunger: -5 },   // v0.8 调高：不吃不睡撑不了多久
-  perHourWorkHunger: -6,    // 干活时每小时饿多少（管饭的活会补一顿）
-  starving: { stamina: -6, mental: -3 },
+  perHourAwake: { stamina: -2.2, mental: -0.6, hunger: -3.5 },
+  perHourWorkHunger: -4,    // 干活时每小时饿多少（管饭的活会补一顿）
+  starving: { stamina: -4, mental: -2 },
   perHourSleepHunger: -2.5,
-  collapse: { cost: 150, hours: 10, maxTimes: 3 },
+  // maxTimes: 0 表示晕倒只进卫生室，不因次数结束游戏。费用由 STA.faintFee 按口袋封顶。
+  collapse: { cost: 60, hours: 8, maxTimes: 0 },
 
   // v0.6 状态门槛：低于这些数，就会有看得见的后果
   thresholds: {

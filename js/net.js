@@ -12,7 +12,7 @@
   const fmtMin = m => m >= 60 ? `${Math.floor(m / 60)} 小时${m % 60 ? ' ' + (m % 60) + ' 分' : ''}` : `${m} 分钟`;
   NET.fmtMin = fmtMin;
   // ---- 上网时间 ----
-  NET.buyTime = function (id) { const o = N.sessions.find(x => x.id === id); if (!o) return { err: '没有这个套餐。' }; const S = S0(); if (S.money < o.price) return { err: `钱不够，要 ¥${o.price}。` }; if (NET.st().min + o.min > 720) return { err: '会员卡里存的时间够多了，先用掉再续。' }; S.money -= o.price; NET.st().min += o.min; G0.log(`在网吧充了 ${o.name}，花 ¥${o.price}。`); return { ok: true, min: NET.st().min }; };
+  NET.buyTime = function (id) { const o = N.sessions.find(x => x.id === id); if (!o) return { err: '没有这个套餐。' }; const S = S0(); if (S.money < o.price) return { err: `钱不够，要 ¥${o.price}。` }; if (NET.st().min + o.min > 720) return { err: '会员卡里存的时间够多了，先用掉再续。' }; S.money -= o.price; NET.st().min += o.min; if (window.CAST) { const practiced = CAST.practicePhone(S.attrs, S.flags, G0.dayNum()); if (practiced.practiced) G0.log(`网吧这套按键熟了一点。手机熟练 ${practiced.phone}。`, 'good'); } G0.log(`在网吧充了 ${o.name}，花 ¥${o.price}。`); return { ok: true, min: NET.st().min }; };
   NET.use = function (min, why) { const n = NET.st(); if (n.min < min) return { err: `上网时间不够：「${why}」要 ${fmtMin(min)}，卡里只剩 ${fmtMin(n.min)}。先加钟。` }; n.min -= min; G0.advance(min); return { ok: true }; };
   // ================= 股票行情 =================
   const cache = {};

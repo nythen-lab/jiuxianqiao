@@ -130,7 +130,7 @@
     else if (r === 'draw') { gs.draws++; out.mental = 3; out.aff = 3; }
     else { gs.games--; out = { r: 'leave', minutes: 10, opp, moves, bet: 0, mental: 0, aff: 0, money: 0 }; gs.today--; }
     gs.aff[opp.id] = (gs.aff[opp.id] || 0) + out.aff; out.total = gs.aff[opp.id];
-    G0.change({ mental: out.mental }); s.money += out.money; if (out.money > 0) s.earned = (s.earned || 0) + out.money;
+    G0.change({ mental: out.mental }); s.money += out.money; if (out.money > 0) { s.earned = (s.earned || 0) + out.money; if (G0.noteWage) G0.noteWage(out.money, 'game'); }
     if (out.r !== 'leave') G0.log(`和${opp.name}下了盘五子棋，${r === 'win' ? '赢了' : r === 'lose' ? '输了' : '下成和棋'}。`, r === 'win' ? 'good' : '');
     // 熟了以后偶尔有小礼物
     let gift = null; if (r !== 'leave' && out.total >= 10 && !gs.gifts[opp.id]) { gs.gifts[opp.id] = 1; gift = opp.gift; G0.change({ mental: 3, hunger: 8 }); }

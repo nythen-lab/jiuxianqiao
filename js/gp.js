@@ -95,7 +95,7 @@
       const bg = o.bg ? (() => { const i = new Image(); i.src = o.bg; return i; })() : null;
       const dur = Math.round((o.dur || def.dur || 70) * (o.tired && !o.dur ? .92 : 1)), mins = o.minutes || def.minutes || 60, min0 = (() => { try { return Math.floor((G.hourF() % 24) * 60); } catch (e) { return 480; } })();
       const env = {
-        W, H, id, dur, opts: o, t: 0, phase: first ? 'help' : 'count', cnt: 0, tutorial: first, S, U, parts: [], floats: [], banner: null, shakeA: 0, pen: 0, ended: false, frame: 0,
+        W, H, id, dur, opts: o, t: 0, phase: (first || o.forceBrief) ? 'help' : 'count', cnt: 0, tutorial: first || !!o.forceBrief, S, U, parts: [], floats: [], banner: null, shakeA: 0, pen: 0, ended: false, frame: 0,
         float(x, y, text, color, size) { env.floats.push({ x, y, text, color: color || '#fff3c4', size: size || 22, t: 0, life: 1.1 }); },
         say(text, color, secs) { env.banner = { text, color: color || '#fff3d6', t: 0, life: secs || 1.8 }; },
         shake(a) { env.shakeA = Math.max(env.shakeA, a || 6); },
@@ -107,7 +107,7 @@
         clock: () => clockOf(min0, env.t / dur, mins)
       };
       let touchHelp = null;
-      if (first && (document.documentElement.clientWidth || innerWidth) < 600) { touchHelp = document.createElement('div'); touchHelp.className = 'gp-touchhelp'; const title = document.createElement('h3'); title.textContent = o.title || def.title; touchHelp.appendChild(title); (def.help || []).forEach(t => { const p = document.createElement('p'); p.textContent = t; touchHelp.appendChild(p); }); const start = document.createElement('button'); start.className = 'btn'; start.textContent = '明白了，开工'; start.onclick = () => ack(); touchHelp.appendChild(start); root.prepend(touchHelp); cv.style.display = 'none'; }
+      if (first && (document.documentElement.clientWidth || innerWidth) < 600) { touchHelp = document.createElement('div'); touchHelp.className = 'gp-touchhelp'; const title = document.createElement('h3'); title.textContent = o.title || def.title; touchHelp.appendChild(title); (def.help || []).forEach(t => { const p = document.createElement('p'); p.textContent = t; touchHelp.appendChild(p); }); const start = document.createElement('button'); start.className = 'btn'; start.textContent = '开始干活'; start.onclick = () => ack(); touchHelp.appendChild(start); root.prepend(touchHelp); cv.style.display = 'none'; }
       let game; try { game = def.make(env); } catch (e) { console.error(e); resolve({ completed: true, quality: .6, fallback: true, summary: '' }); return; }
       let res = null, last = performance.now(), alive = true, endT = 0, btn = {};
       const cur = GP.cur = { id, env, game, def, finish: q => finish(game.final ? Object.assign({}, game.final(), q != null ? { quality: q } : {}) : { quality: q == null ? .6 : q }, false), ack: () => ack(), res: () => res, mounted: true };
@@ -116,8 +116,9 @@
       function finish(r, quit) {
         if (env.ended) return; env.ended = true; r = r || {}; let q = clamp(r.quality == null ? .5 : r.quality, 0, 1); if (quit) q = clamp(q * .85, 0, 1);
         const hoursDone = (o.hours || def.hours || 8) * clamp(env.t / dur, 0, 1);
-        const qp = quit && G.quitRoll ? G.quitRoll() : null; if (qp) r.lines = [qp.line, qp.frac ? `只结整份钱的 ${Math.round(qp.frac * 100)}%` : '一分钱没有'];
-        res = { quitPay: qp, completed: !quit, quit: !!quit, quality: q, summary: r.summary || '', lines: r.lines || [], stats: r.stats || {}, hoursDone, mentalMult: r.mentalMult || 1, fines: r.fines || 0, score: r.score, gp: id, t: env.t, pen: env.pen };
+        const beforeStart = quit && env.phase === 'help' && !env.reopen;
+        const qp = quit && !beforeStart && G.quitRoll ? G.quitRoll() : null; if (qp) r.lines = [qp.line, qp.frac ? `只结整份钱的 ${Math.round(qp.frac * 100)}%` : '一分钱没有'];
+        res = { noPay: beforeStart, quitPay: beforeStart ? { frac: 0, line: '还没开始干活，这单没有工钱。' } : qp, completed: !quit, quit: !!quit, quality: q, summary: r.summary || '', lines: r.lines || [], stats: r.stats || {}, hoursDone, mentalMult: r.mentalMult || 1, mentalBonus: r.mentalBonus || 0, fines: r.fines || 0, score: r.score, gp: id, t: env.t, pen: env.pen };
         env.phase = 'end'; endT = 0; bar.querySelector('#gp-done').style.display = ''; bar.querySelector('#gp-quit').style.display = 'none'; bar.querySelector('#gp-help').style.display = 'none';
         const gr = GP.grade(q); if (quit) { S.tap(); } else if (gr.s >= 2) { S.win(); env.burst(W / 2, 200, 40, { colors: ['#ffe27a', '#ffb05a', '#fff', '#9fe88a'], speed: 330, up: 180, shape: 'rect', life: 1.4, size: 7 }); } else S.chime();
         if (quit) done();
@@ -154,7 +155,7 @@
         if (env.banner) { env.banner.t += dt; if (env.banner.t > env.banner.life) env.banner = null; }
         env.shakeA = Math.max(0, env.shakeA - dt * 22);
         if (env.phase === 'count') { const n0 = Math.floor(env.cnt / .6); env.cnt += dt; const n1 = Math.floor(env.cnt / .6); if (n1 > n0) { n1 >= 3 ? S.go() : S.count(); } if (env.cnt >= 2.0) { env.phase = 'play'; if (game.onStart) game.onStart(); } if (typeof game.idle === 'function') game.idle(dt); return; }
-        if (env.phase === 'play') { env.t += dt; { const left = dur - env.t, warnAt = dur >= 20 ? 10 : Math.max(3, dur * .4); if (left <= warnAt) { if (!env.warned10) { env.warned10 = true; env.say(`还剩 ${Math.ceil(warnAt)} 秒！`, '#ffb4a5', 1.6); S.tone(660, 440, .25, .2); } const sec = Math.ceil(left); if (sec !== env.lastSec) { env.lastSec = sec; S.tone(sec <= 3 ? 1100 : 880, sec <= 3 ? 1100 : 880, .06, sec <= 3 ? .16 : .1); } } } if (game.update) game.update(dt); if (env.phase === 'play' && env.t >= dur) { env.t = dur; finish(game.final ? game.final() : { quality: .6 }, false); } }
+        if (env.phase === 'play') { env.t += dt; if (o.lowSta && !env._lowSaid && env.t > 6) { env._lowSaid = 1; env.say(o.lowSta, '#ffb4a5', 2.6); } { const left = dur - env.t, warnAt = dur >= 20 ? 10 : Math.max(3, dur * .4); if (left <= warnAt) { if (!env.warned10) { env.warned10 = true; env.say(`还剩 ${Math.ceil(warnAt)} 秒！`, '#ffb4a5', 1.6); S.tone(660, 440, .25, .2); } const sec = Math.ceil(left); if (sec !== env.lastSec) { env.lastSec = sec; S.tone(sec <= 3 ? 1100 : 880, sec <= 3 ? 1100 : 880, .06, sec <= 3 ? .16 : .1); } } } if (game.update) game.update(dt); if (env.phase === 'play' && env.t >= dur) { env.t = dur; finish(game.final ? game.final() : { quality: .6 }, false); } }
         else if (env.phase === 'end') { endT += dt; if (typeof game.idle === 'function') game.idle(dt); }
         else if (typeof game.idle === 'function') game.idle(dt);
       }
@@ -170,11 +171,14 @@
       }
       function drawHelp() {
         ctx.fillStyle = 'rgba(8,6,4,.72)'; ctx.fillRect(0, 0, W, H);
-        const cx = W / 2, cw = 700, chh = 100 + def.help.length * 72 + 70, cy = (H - chh) / 2 + 12; U.panel(ctx, cx - cw / 2, cy, cw, chh, 20, { top: 'rgba(66,50,36,.97)', bot: 'rgba(34,26,19,.97)' });
-        U.txt(ctx, `怎么玩 · ${(o.title || def.title)}`, cx, cy + 46, 26, '#ffe9b8', 'center', true);
-        ctx.font = `17px ${FONT}`; def.help.forEach((h, i) => { const y = cy + 92 + i * 72; ctx.beginPath(); ctx.arc(cx - cw / 2 + 52, y + 22, 18, 0, 7); const g = ctx.createLinearGradient(0, y + 4, 0, y + 40); g.addColorStop(0, '#ffd47a'); g.addColorStop(1, '#d9902e'); ctx.fillStyle = g; ctx.fill(); U.txt(ctx, String(i + 1), cx - cw / 2 + 52, y + 29, 20, '#3a2208', 'center', true); ctx.font = `17px ${FONT}`; U.wrap(ctx, h, cw - 150).slice(0, 3).forEach((ln, j) => U.txt(ctx, ln, cx - cw / 2 + 88, y + 18 + j * 23, 17, '#f6ecd6')); });
-        const bw = 260, bh = 46, bx = cx - bw / 2, by = cy + chh - 70; btn.ok = { x: bx, y: by, w: bw, h: bh };
-        const pulse = 1 + Math.sin(env.frame / 8) * .03; ctx.save(); ctx.translate(cx, by + bh / 2); ctx.scale(pulse, pulse); U.glossy(ctx, -bw / 2, -bh / 2, bw, bh, 23, '#e0a02e'); U.txt(ctx, env.reopen ? '继续 ▸' : (first ? '明白了，开工 ▸' : '开工 ▸'), 0, 8, 21, '#2e1b06', 'center', true); ctx.restore();
+        const notes = o.payNote || [];
+        const cx = W / 2, cw = 760, chh = Math.min(H - 24, 120 + def.help.length * 64 + notes.length * 22 + 78), cy = Math.max(8, (H - chh) / 2);
+        U.panel(ctx, cx - cw / 2, cy, cw, chh, 20, { top: 'rgba(66,50,36,.97)', bot: 'rgba(34,26,19,.97)' });
+        U.txt(ctx, `开工前 · ${(o.title || def.title)}`, cx, cy + 40, 24, '#ffe9b8', 'center', true);
+        ctx.font = `16px ${FONT}`; def.help.forEach((h, i) => { const y = cy + 70 + i * 64; ctx.beginPath(); ctx.arc(cx - cw / 2 + 36, y + 16, 14, 0, 7); const g = ctx.createLinearGradient(0, y, 0, y + 32); g.addColorStop(0, '#ffd47a'); g.addColorStop(1, '#d9902e'); ctx.fillStyle = g; ctx.fill(); U.txt(ctx, String(i + 1), cx - cw / 2 + 36, y + 22, 16, '#3a2208', 'center', true); ctx.font = `16px ${FONT}`; U.wrap(ctx, h, cw - 110).slice(0, 2).forEach((ln, j) => U.txt(ctx, ln, cx - cw / 2 + 60, y + 12 + j * 20, 16, '#f6ecd6')); });
+        notes.forEach((h, i) => U.txt(ctx, h, cx, cy + 78 + def.help.length * 64 + i * 20, 14, '#ffe9a8', 'center'));
+        const bw = 260, bh = 46, bx = cx - bw / 2, by = cy + chh - 64; btn.ok = { x: bx, y: by, w: bw, h: bh };
+        const pulse = 1 + Math.sin(env.frame / 8) * .03; ctx.save(); ctx.translate(cx, by + bh / 2); ctx.scale(pulse, pulse); U.glossy(ctx, -bw / 2, -bh / 2, bw, bh, 23, '#e0a02e'); U.txt(ctx, env.reopen ? '继续 ▸' : '开始干活 ▸', 0, 8, 21, '#2e1b06', 'center', true); ctx.restore();
         U.txt(ctx, '（点一下，或按 空格 / 回车）', cx, cy + chh - 10, 13, 'rgba(255,230,190,.6)', 'center');
       }
       function drawEnd() {
@@ -201,7 +205,7 @@
         ctx.restore();
         drawHud();
         if (env.banner) { const b = env.banner, a = b.t < .15 ? b.t / .15 : clamp((b.life - b.t) / .3, 0, 1); ctx.font = `700 21px ${FONT}`; const w = ctx.measureText(b.text).width + 44; ctx.globalAlpha = a; U.panel(ctx, W / 2 - w / 2, 58 - (1 - a) * 10, w, 38, 19, { top: 'rgba(40,30,22,.92)', bot: 'rgba(24,18,13,.92)' }); U.txt(ctx, b.text, W / 2, 84 - (1 - a) * 10, 21, b.color, 'center', true); ctx.globalAlpha = 1; }
-        if (env.phase === 'play' && game.hint) { const h = (env.tutorial || env.t < 8) ? game.hint() : null; if (h) { ctx.font = `16px ${FONT}`; const w = Math.min(820, ctx.measureText(h).width + 36); U.panel(ctx, W / 2 - w / 2, H - 46, w, 34, 17, { top: 'rgba(10,8,6,.78)', bot: 'rgba(10,8,6,.78)', line: 'rgba(255,226,140,.5)' }); U.txt(ctx, h, W / 2, H - 24, 16, '#ffe9a8', 'center'); } }
+        if (env.phase === 'play' && game.hint) { const h = (game.hintPersistent || env.tutorial || env.t < 8) ? game.hint() : null; if (h) { ctx.font = `16px ${FONT}`; const w = Math.min(820, ctx.measureText(h).width + 36); U.panel(ctx, W / 2 - w / 2, H - 46, w, 34, 17, { top: 'rgba(10,8,6,.78)', bot: 'rgba(10,8,6,.78)', line: 'rgba(255,226,140,.5)' }); U.txt(ctx, h, W / 2, H - 24, 16, '#ffe9a8', 'center'); } }
         if (env.phase === 'count') { const n = 3 - Math.floor(env.cnt / .6); const k = (env.cnt % .6) / .6; const label = n > 0 ? String(n) : '开工！'; ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1.5 - k * .5, 1.5 - k * .5); ctx.globalAlpha = 1 - k * .6; U.txt(ctx, label, 0, 28, n > 0 ? 100 : 80, '#fff1c4', 'center', true, 'rgba(40,20,4,.9)'); ctx.restore(); }
         if (env.phase === 'help') drawHelp();
         if (env.phase === 'end') { drawEnd(); btn.done = null; }
