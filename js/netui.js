@@ -14,7 +14,7 @@
       await UI.modal({ title: '酒仙桥网吧 · 上网', cls: 'nethub', wide: true, html: '<div id="nethub"></div>', buttons: [{ text: '关机走人', id: 'net-quit' }], onShow: (m, close) => {
         const root = $(m, '#nethub'); let timer = null; const stopT = () => { if (timer) { clearInterval(timer); timer = null; } };
         const say = (t, bad) => { st.msg = t; st.msgBad = !!bad; };
-        const head = () => `<div class="net-top"><span>🪪 会员卡剩余 <b id="net-min">${NET.fmtMin(NET.st().min)}</b></span><span class="net-buy">${N.sessions.map(o => `<button class="btn sm ghost" data-a="buytime" data-id="${o.id}">充 ${o.name} ${money(o.price)}</button>`).join('')}</span><span class="muted">口袋 ${money(S.money)}</span></div>
+        const head = () => `<div class="net-top"><span class="net-cardtime">🪪 会员卡剩余 <b id="net-min">${NET.fmtMin(NET.st().min)}</b></span><span class="net-buy">${N.sessions.map(o => `<button class="btn sm ghost" data-a="buytime" data-id="${o.id}">充 ${o.name} ${money(o.price)}</button>`).join('')}</span><span class="net-pocket">口袋 <b id="net-cash">${money(S.money)}</b></span></div>
           <div class="net-tabs">${[['forum', '📰 论坛'], ['stock', '📈 炒股'], ['job', '🔎 找活'], ['fun', '🎬 视频 · 电影']].map(([k, t]) => `<button class="net-tab ${st.tab === k ? 'on' : ''}" data-a="tab" data-id="${k}">${t}</button>`).join('')}</div>`;
         const msg = () => st.msg ? `<p class="net-msg ${st.msgBad ? 'bad' : ''}">${esc(st.msg)}</p>` : '';
         // ---------- 论坛 ----------

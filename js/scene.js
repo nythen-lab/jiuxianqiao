@@ -53,10 +53,13 @@
     const M = C.townMap, h = G.hourF(), mode = A.timeMode(h); badges = badges || {};
     const sea = G.season ? G.season() : null;
     const pins = ORDER.map(id => C.places.find(p => p.id === id)).filter(p => p && M.pins[p.id] && !(p.hidden && !(G.isUnlocked && G.isUnlocked('place', p)))).map(p => {
-      const [x, y] = M.pins[p.id]; const unl = G.isUnlocked ? G.isUnlocked('place', p) : true; const here = S.loc === p.id; const o = G.isOpen(p); const edge = x >= 84 ? ' er' : x <= 14 ? ' el' : '';
-      if (!unl) return `<button class="pin locked${edge}" data-lock="${p.id}" style="--x:${x};--y:${y}" title="${p.unlockHint || '还没开放'}"><i>🔒</i><span class="pl"><b>？？？</b><small>${p.unlockHint || '还没开放'}</small></span></button>`;
+      const [x, y] = M.pins[p.id]; const unl = G.isUnlocked ? G.isUnlocked('place', p) : true; const here = S.loc === p.id; const o = G.isOpen(p);
+      const hint = p.unlockHint || '还没开放';
+      const placeCls = `${y < 20 ? ' dn' : ''}${x >= 78 ? ' pull-l' : x <= 16 ? ' pull-r' : ''}${p.id === 'corner' ? ' focal' : ''}${!unl && hint.length > 14 ? ' long' : ''}`;
+      const style = `--x:${x};--y:${y};z-index:${p.id === 'corner' ? 30 : Math.round(y)}`;
+      if (!unl) return `<button class="pin locked${placeCls}" data-lock="${p.id}" style="${style}" title="${hint}"><i>🔒</i><span class="pl"><b>？？？</b><small>${hint}</small></span></button>`;
       const m = G.travelMin(S.loc, p.id);
-      return `<button class="pin${edge}${here ? ' here' : ''}${o ? '' : ' shut'}" data-pin="${p.id}" style="--x:${x};--y:${y}" title="${p.name}"><i>${ICON[p.id] || '📍'}</i><span class="pl"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿 · 点进去' : `${m} 分钟${o ? '' : ' · 已打烊'}`}</small></span>${badges[p.id] ? `<em class="pbadge">${badges[p.id]}</em>` : ''}</button>`;
+      return `<button class="pin${placeCls}${here ? ' here' : ''}${o ? '' : ' shut'}" data-pin="${p.id}" style="${style}" title="${p.name}"><i>${ICON[p.id] || '📍'}</i><span class="pl"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿 · 点进去' : `${m} 分钟${o ? '' : ' · 已打烊'}`}</small></span>${badges[p.id] ? `<em class="pbadge">${badges[p.id]}</em>` : ''}</button>`;
     }).join('');
     const deco = (M.deco || []).map(d => `<span class="mdeco" style="--x:${d.x};--y:${d.y}" title="${d.note || ''}">${d.label}</span>`).join('');
     return `<div class="townmap" data-mode="${mode}" data-season="${sea ? sea.id : ''}"><div class="tm-img" style="background-image:url(${window.FX ? FX.mapImg(h) : M.img})"></div><div class="tm-tint ${mode}"></div><div class="tm-season"></div>

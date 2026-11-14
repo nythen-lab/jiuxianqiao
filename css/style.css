@@ -1145,7 +1145,7 @@ dl.bio dt { color:#f4c56a; } dl.bio dd { margin:0; } dl.bio dd.lockbio { color:v
 
 /* ===== v1.0 四季环 / 季节粒子 / 地图图钉修正 ===== */
 .pin.here b { color:#2a1a08 !important; } .pin.here .pl small { color:#4a3414 !important; }
-.pin.locked { max-width:150px; } .pin.locked .pl small { white-space:normal; max-width:104px; line-height:1.2; }
+.pin.locked .pl small { white-space:normal; line-height:1.25; }
 .season-chip { cursor:pointer; display:inline-flex; align-items:center; gap:4px; padding:1px 8px 1px 3px; }
 .season-chip svg { width:20px; height:20px; display:block; }
 .sfx { position:absolute; inset:0; pointer-events:none; overflow:hidden; z-index:2; }
@@ -1329,9 +1329,23 @@ dl.bio dt { color:#f4c56a; } dl.bio dd { margin:0; } dl.bio dd.lockbio { color:v
 .walk-art.wa-day { background:linear-gradient(#9ec8e8,#e8dcc0 70%,#9a8a6a); } .walk-art.wa-dawn { background:linear-gradient(#f4b68a,#f0dcc0 70%,#8a7a5a); } .walk-art.wa-night { background:linear-gradient(#10182e,#2a3050 70%,#3a3a44); }
 @keyframes waBob { 50% { transform:translateY(-6px) rotate(-3deg); } }
 /* v1.0.2 网吧上网 */
-.nethub .box { max-width: 760px; } .net-top { display:flex; gap:8px; flex-wrap:wrap; align-items:center; justify-content:space-between; font-size:13px; margin-bottom:6px; } .net-buy { display:flex; gap:4px; flex-wrap:wrap; }
-.net-tabs { display:flex; gap:4px; margin:6px 0; } .net-tab { flex:1; padding:7px; border:1px solid rgba(255,230,180,.25); background:#1a1510; color:#d8c8a8; border-radius:8px 8px 0 0; cursor:pointer; } .net-tab.on { background:#3a2c18; color:#ffd58a; border-color:#d8a24a; }
-.net-body { background:#14100b; border:1px solid rgba(255,230,180,.2); border-radius:0 0 10px 10px; padding:10px; max-height:52vh; overflow:auto; font-size:14px; line-height:1.55; }
+.modal.nethub .box { width:min(760px, calc(100% - 28px)); max-width:min(760px, calc(100% - 28px)); max-height:min(760px, calc(100% - 24px)); display:flex; flex-direction:column; overflow:hidden; box-sizing:border-box; }
+.nethub .mbody { flex:1 1 auto; min-height:0; overflow:hidden; display:flex; flex-direction:column; }
+.nethub #nethub { flex:1 1 auto; min-height:0; display:flex; flex-direction:column; overflow:hidden; }
+.nethub h2, .nethub .mbtns { flex:0 0 auto; }
+.outlook { margin:8px 0; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.05); }
+.outlook ul { margin:4px 0; padding-left:18px; } .outlook li { margin:2px 0; }
+.net-top { flex:0 0 auto; display:flex; gap:8px 10px; flex-wrap:wrap; align-items:center; justify-content:flex-start; font-size:14px; line-height:1.35; margin:0 0 6px; padding:0 2px 0 0; }
+.net-cardtime { flex:0 0 auto; white-space:nowrap; }
+.net-buy { display:flex; gap:4px; flex:1 1 200px; flex-wrap:wrap; min-width:0; }
+.net-pocket { flex:0 0 auto; margin-left:auto; white-space:nowrap; padding:2px 0 2px 10px; font-size:15px; }
+.net-pocket b { font-size:16px; font-weight:800; font-variant-numeric:tabular-nums; }
+.net-tabs { flex:0 0 auto; display:flex; gap:4px; margin:6px 0 0; } .net-tab { flex:1; padding:7px; border:1px solid rgba(255,230,180,.25); background:#1a1510; color:#d8c8a8; border-radius:8px 8px 0 0; cursor:pointer; } .net-tab.on { background:#3a2c18; color:#ffd58a; border-color:#d8a24a; }
+.net-body { flex:1 1 auto; min-height:0; background:#14100b; border:1px solid rgba(255,230,180,.2); border-radius:0 0 10px 10px; padding:10px 14px 12px 10px; max-height:none; overflow:auto; scrollbar-gutter:stable; font-size:14px; line-height:1.55; }
+@media (max-width:760px) {
+  .net-buy { flex-basis:100%; }
+  .net-pocket { flex-basis:100%; margin-left:0; padding:6px 0 2px; }
+}
 .net-list { list-style:none; margin:0; padding:0; } .net-row { display:flex; align-items:center; gap:8px; width:100%; text-align:left; background:#1d1710; color:#eadfc4; border:1px solid rgba(255,230,180,.12); border-radius:6px; padding:7px 9px; margin-bottom:4px; cursor:pointer; } .net-row:hover { background:#2a2014; } .net-row.seen { opacity:.65; }
 .net-cat { font-size:11px; padding:1px 6px; border-radius:4px; background:#553d1c; color:#ffd58a; } .net-cat.c-招工 { background:#1f5a3a; color:#bff0cf; } .net-cat.c-行情 { background:#5a2020; color:#ffc0b0; } .net-cat.c-吐槽 { background:#40305a; }
 .stocks .stk { justify-content:space-between; } .net-up { color:#ff6a50; } .net-dn { color:#4ccf80; }
@@ -1345,9 +1359,24 @@ dl.bio dt { color:#f4c56a; } dl.bio dd { margin:0; } dl.bio dd.lockbio { color:v
 .net-fun { display:grid; grid-template-columns:1fr 1fr; gap:10px; } .net-fun > div { background:#1d1710; padding:10px; border-radius:8px; } .net-reps div { font-size:12.5px; color:#bba98a; } .net-my { margin-bottom:8px; } .net-mine { padding-left:16px; }
 /* Temple and feasting: full effect descriptions, tactile scene objects. */
 .act.tile small{white-space:normal}.ritual-area{display:flex;justify-content:center;height:155px;align-items:center;background:radial-gradient(ellipse,#b28a4833,transparent);border-radius:20px}.ritual-object{width:90px;height:110px;background:linear-gradient(90deg,#5c301b,#b37739,#5c301b);border:2px solid #d8ae65;border-radius:12px 12px 28px 28px;display:flex;justify-content:center;align-items:center;color:#ffdc8a;font-size:40px;touch-action:none;transition:transform .12s;box-shadow:0 14px 22px #0008}.ritual-object.incense{background:none;border:none;box-shadow:none;gap:13px}.ritual-object.incense i{width:5px;height:105px;background:linear-gradient(#8d4b2b,#d1a66a);display:block}.ritual-object.incense.lit i{background:linear-gradient(#ff713f 0 4%,#cbbcaf 4% 8%,#9a5a31 8%);box-shadow:0 -14px 20px #ffd29788}#ritual-touch{touch-action:none}.ritual progress{display:block;margin:12px auto;width:80%;accent-color:#dcb566}.fortune-verse{font-family:serif;font-size:24px;text-align:center;color:#ffe1a1;line-height:2}.feast-table{display:flex;gap:12px;justify-content:center;background:radial-gradient(ellipse,#763b2c,#3d201a);padding:20px 12px;border-radius:50%}.feast-dish{width:30%;border:0;background:transparent;color:#ffedc4;cursor:pointer}.feast-dish img{width:100%;aspect-ratio:1;border-radius:50%;object-fit:cover;box-shadow:0 4px 10px #0008}.feast-dish small{display:block}.feast-dish.tasted{transform:translateY(-5px);filter:brightness(1.2)}
-/* Label collision guard: four rows of compact map destinations, full detail on hover. */
-.townmap .pin{box-sizing:border-box;width:min(110px,21cqw);max-width:min(110px,21cqw);gap:3px;padding:4px;border-radius:12px}
-.townmap .pin .pl{min-width:0;white-space:normal}.townmap .pin b{font-size:11px;line-height:1.2}.townmap .pin small{font-size:9px;line-height:1.1}.townmap .pin i{width:20px;min-width:20px;height:22px;font-size:14px}.townmap .pin.locked .pl small{max-height:24px;overflow:hidden}.townmap .pin.er,.townmap .pin.el{transform:translate(-50%,-100%)}
+/* Map pins: size to the label, stagger anchors, keep long locked hints fully readable. */
+.townmap .pin{box-sizing:border-box;width:max-content;max-width:min(148px,28cqw);gap:4px;padding:3px 7px 3px 3px;border-radius:14px}
+.townmap .pin.long{max-width:min(168px,34cqw)}
+.townmap .pin .pl{min-width:0;white-space:normal}.townmap .pin b{font-size:12px;line-height:1.2}.townmap .pin small{font-size:10px;line-height:1.25;white-space:normal}
+.townmap .pin i{width:22px;min-width:22px;height:22px;font-size:14px}
+.townmap .pin.locked .pl small{max-height:none;overflow:visible;display:block}
+.townmap .pin.pull-l{transform:translate(calc(-100% + 16px),-100%)}
+.townmap .pin.pull-r{transform:translate(-16px,-100%)}
+.townmap .pin.dn{transform:translate(-50%,8px)}
+.townmap .pin.dn.pull-l{transform:translate(calc(-100% + 16px),8px)}
+.townmap .pin.dn.pull-r{transform:translate(-16px,8px)}
+.townmap .pin.pull-l:hover{transform:translate(calc(-100% + 16px),-100%) scale(1.04)}
+.townmap .pin.pull-r:hover{transform:translate(-16px,-100%) scale(1.04)}
+.townmap .pin.focal{border-color:#ffe1a6;box-shadow:0 0 0 2px rgba(242,178,76,.9),0 6px 16px rgba(0,0,0,.45)}
+.townmap .pin.focal i{background:#f2b24c;color:#2a1a08}
+.mrow.locked{height:auto;align-items:start}.mrow.locked small{white-space:normal;line-height:1.3}
+#stage.portrait .townmap .pin.pull-l,#stage.portrait .townmap .pin.pull-r,#stage.portrait .townmap .pin.dn{transform:translate(-50%,-50%)}
+#stage.portrait .townmap .pin.focal{width:34px;height:34px;max-width:34px;box-shadow:0 0 0 3px #f2b24c}
 
 .clock .time.big {font-size:24px}
 .legacy-clock{display:flex;align-items:center;justify-content:center;gap:12px;color:#d6edbb;font-size:14px;padding:3px}.legacy-clock progress{width:45%;height:8px;accent-color:#8bc86c}.legacy-clock.urgent{color:#ffb3a0;animation:warnclock .8s ease-in-out infinite alternate}.legacy-clock.urgent progress{accent-color:#ee7350}@keyframes warnclock{to{filter:brightness(1.5)}}

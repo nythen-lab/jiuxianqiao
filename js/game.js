@@ -459,7 +459,8 @@
     let pay = 0;
     let bonus = 0, skillPay = 0, quitInfo = null;
     if (res.completed) {
-      if (j.qualityPay && res.quality != null) bonus = Math.round((res.quality - 0.7) * j.qualityPay / 5) * 5;
+      if (j.qualityPay && res.quality != null && window.STA) bonus = STA.perfBonus(res.quality, j.qualityPay);
+      else if (j.qualityPay && res.quality != null) bonus = Math.round((res.quality - 0.7) * j.qualityPay / 5) * 5;
       const lv = j.skill ? (S.skills[j.skill] || 0) : 0;
       if (lv >= 3) skillPay = (lv - 2) * 5;  // 熟手补贴
       pay = wage - (res.fines || 0) + bonus + skillPay;
@@ -819,24 +820,61 @@
     if (S.ended) return S.ended;
     const g = G.identity().goal;
     if (S.stats.mental <= 0) return G.end('lose_mental', false);
-    if (S.collapses >= ST.collapse.maxTimes) return G.end('lose_collapse', false);
+    if (ST.collapse.maxTimes > 0 && S.collapses >= ST.collapse.maxTimes) return G.end('lose_collapse', false);
     // 开放日历：寄够钱自动胜利；体验型需玩家主动离开，不因天数强制结算
     if (g.type === 'send' && S.sent >= g.amount) return G.end(g.endKey || (g.debt ? 'win_debt' : 'win_send'), true);
     if (g.type === 'settle' && G.goalProgress().done) return G.end(g.endKey || 'win_settle', true);
     return null;
   };
   G.end = function (key, win) { S.ended = { key, win, day: G.dayNum(), clock: G.clock() }; if (win) G.metaWin(S.idId, key); G.log('结局：' + C.endings[key].title, 'big'); G.save(); return S.ended; };
+  G.shiftOutlook = function (job) {
+    if (!job) return null;
+    const hours = ((hm(job.end) - hm(job.start) + 1440) % 1440) / 60;
+    const tired = (S.stats.stamina <= TH().staminaLow ? 1.15 : 1) * (S.stats.hunger <= 20 ? 1.2 : 1) * ((job.heavy || job.id === 'courier') ? (G.identity().heavyJobMult || 1) : 1) * (job.cost.stamina < 0 && G.debuff('loose') ? C.debuffs.loose.workSta : 1);
+    const meals = (C.jobMeals && C.jobMeals[job.id]) || [];
+    const mealHunger = meals.length ? meals[0].hunger : (job.meal ? 30 : 0);
+    const o = STA.outlook({
+      sta: S.stats.stamina, maxSta: S.maxSta, hunger: S.stats.hunger,
+      staCost: job.cost.stamina || 0, tired, awakeHours: 80 / 60, workHours: hours,
+      workHungerPerHour: ST.perHourWorkHunger, awakeStaPerHour: ST.perHourAwake.stamina,
+      mealHunger, force: TH().staminaForce, noJob: TH().staminaNoJob, hungerForce: TH().hungerForce
+    });
+    o.hours = Math.round(hours * 10) / 10; o.now = Math.round(S.stats.stamina); o.hungerNow = Math.round(S.stats.hunger);
+    const riskText = o.risk === 'faint' ? '干完很可能眼前一黑，被送到卫生室。可以先吃饭或歇一小时。' : o.risk === 'nowork' ? '干完之后体力会低到招工的人不要你，得先睡一觉。' : o.risk === 'hungry' ? '这班会把肚子掏空，收工得马上吃饭，饿着睡也补不回体力。' : '这班干完，按现在的身子还能站住。';
+    o.html = `<div class="outlook"><b>这班身子</b><ul>
+      <li>现在体力 <b>${o.now}</b> / ${S.maxSta}，饱腹 <b>${o.hungerNow}</b></li>
+      <li>这班大约 ${o.hours} 小时，体力约 <b>${o.staHit}</b>（含现在的手软）${o.awakeHit ? `，来回路上再约 ${o.awakeHit}` : ''}</li>
+      <li>预计剩下体力 <b>${o.remain}</b>，饱腹大约 <b>${o.hungerLeft}</b>${mealHunger ? '（含管的那顿饭）' : ''}</li>
+      </ul><p class="${o.risk === 'ok' ? 'muted' : 'warn'}">${riskText} 晕倒只会进卫生室，不会因此结束游戏，存折里的钱还在。</p></div>`;
+    return o;
+  };
+  G.resumeAfterCollapse = function () {
+    if (!S || !S.ended || S.ended.key !== 'lose_collapse') return { err: 'no' };
+    const money = S.money;
+    const bank = S.life && S.life.bank;
+    S.ended = null;
+    S.stats.stamina = Math.max(S.stats.stamina, 42);
+    S.stats.hunger = Math.max(S.stats.hunger, 36);
+    S.stats.mental = Math.max(S.stats.mental, 24);
+    S.flags.resumedCollapse = (S.flags.resumedCollapse || 0) + 1;
+    G.log('在卫生室醒过来。口袋和存折都没再扣，接着过。', 'good');
+    G.save();
+    return { ok: true, money: S.money, bank: S.life && S.life.bank, sameMoney: S.money === money, sameBank: (S.life && S.life.bank) === bank };
+  };
   G.collapseCheck = function () {
     if (S.ended) return null;
     const starve = (S.starveH || 0) >= TH().starveCollapseHours;
     if (S.stats.stamina > 0 && !starve) return null;
     const K = ST.collapse; S.collapses++; S.starveH = 0; S.flags.collapsedOnce = G.dayNum();
-    const cost = Math.min(S.money, K.cost); S.money -= cost;
-    G.advance(K.hours * 60, 'sleep', { recover: { stamina: 6, mental: 0 } });
-    S.stats.hunger = Math.max(S.stats.hunger, 30); S.loc = 'inn'; S.starveH = 0; // v0.9 修：卫生室里躺着时饿的小时数不再累计，醒来不会立刻又饿晕
-    S.stats.stamina = Math.max(S.stats.stamina, 35);
-    G.log(`${starve ? '饿得太久' : '体力耗尽'}，晕倒了。被人送到卫生室，花了 ${cost} 元。（第${S.collapses}次）`, 'bad');
-    return { cost, n: S.collapses, starve };
+    const before = { sta: Math.round(S.stats.stamina), money: S.money, hunger: Math.round(S.stats.hunger), bank: S.life ? S.life.bank : null };
+    const cost = window.STA ? STA.faintFee(S.money) : Math.min(S.money, K.cost); S.money -= cost;
+    G.advance(K.hours * 60, 'sleep', { recover: { stamina: 6, mental: 1 } });
+    S.stats.hunger = Math.max(S.stats.hunger, 36); S.loc = 'inn'; S.starveH = 0;
+    S.stats.stamina = Math.max(S.stats.stamina, 42);
+    S.stats.mental = Math.max(S.stats.mental, 12);
+    const after = { sta: Math.round(S.stats.stamina), money: S.money, hunger: Math.round(S.stats.hunger), bank: S.life ? S.life.bank : null };
+    G.log(`${starve ? '饿得太久' : '体力耗尽'}，晕倒了。卫生室费了 ${cost} 元，存折没动。（第${S.collapses}次）`, 'bad');
+    return { cost, n: S.collapses, starve, cause: starve ? '连续挨饿' : '体力到 0', before, after, hours: K.hours };
   };
 
   // ================= v0.6：状态后果 =================
@@ -921,7 +959,7 @@
     S.stats.stamina = Math.max(S.stats.stamina, TH().staminaForce + (where === 'street' ? 26 : 22));
     const cold = L.cold && !G.outfit().warm && !G.warmed();
     G.log(`体力撑不住，${where === 'street' ? '倒在自助厅门口睡了过去' : '一头栽在' + L.name + '上睡死了'}，睡了 ${Math.round(minutes / 60)} 小时。${robbed ? `醒来少了 ${robbed} 元。` : ''}${lostItem ? `丢了${lostItem}。` : ''}`, 'bad');
-    if (frozen) S.stats.stamina = 0;
+    if (frozen) S.stats.stamina = Math.max(S.stats.stamina, TH().staminaForce + 12);
     return { where, L, paid, robbed, lostItem, cold, frozen, winterText: ns ? ns.forcedText : '', hours: Math.round(minutes / 60), gain: { sta: Math.round(S.stats.stamina - before.sta), men: Math.round(S.stats.mental - before.men) } };
   };
   // 饿到不行：有钱就被迫去吃最便宜的一口，没钱就蹲着

@@ -234,9 +234,10 @@
       if (col) {
         UI.render();
         await UI.modal({ title: col.starve ? '饿晕了' : '眼前一黑', cls: 'forced-modal', html: `<div class="forced"><div class="forced-ic">${col.starve ? '🍚' : '😵'}</div><div>
-          <p>${col.starve ? '你已经很久没吃东西了。站起来的一瞬间，耳朵里嗡的一声，' : '你两腿一软，'}倒在了路边。</p>
-          <p>醒来时已经躺在卫生室里，医药费 <b>${col.cost} 元</b>。时间过去了 ${ST.collapse.hours} 小时。</p>
-          <p class="why bad">已经晕倒 ${col.n} 次，第 ${ST.collapse.maxTimes} 次就扛不住了（游戏结束）。</p></div></div>`, buttons: [{ text: '扶着墙站起来' }] });
+          <p>原因：<b>${col.cause || (col.starve ? '连续挨饿' : '体力到 0')}</b>。${col.starve ? '你已经很久没吃东西了。' : '你两腿一软，'}倒在了路边。</p>
+          <p>卫生室：口袋 <b>−¥${col.cost}</b>（原来 ¥${col.before ? col.before.money : '?'}，现在 ¥${col.after ? col.after.money : S.money}）。存折没有动。</p>
+          <p>躺了 ${col.hours || ST.collapse.hours} 小时。醒来体力 <b>${col.after ? col.after.sta : Math.round(S.stats.stamina)}</b>，饱腹 <b>${col.after ? col.after.hunger : Math.round(S.stats.hunger)}</b>。</p>
+          <p class="muted">这是第 ${col.n} 次晕倒。晕倒不会结束这一局，醒了可以继续干活，也可以去银行取存折里的钱。</p></div></div>`, buttons: [{ text: '扶着墙站起来' }] });
         UI.render(); continue;
       }
       const f = G.forcedCheck();
@@ -829,8 +830,11 @@
         return;
       }
       let wage = r.wage;
-      const go = await UI.modal({ title: `${R.name}点了你`, html: `<div class="talk"><div class="pt">${A.portrait(R.look, { mood: 'smile' })}</div><div><b>${R.name}</b><p>“行，你，上车！”</p>${r.line ? `<p class="why bad">“${r.line}”</p>` : ''}<p>${j.name} · ${j.start}–${j.end} · 工钱 <b>¥${wage}</b>${j.meal ? '（管饭）' : ''}</p><p class="muted">${j.desc}</p></div></div>`, buttons: [{ text: `上${j.ride.replace(/^.*的/, '')}` }, { text: '算了，不去' }] });
-      if (go === 1) { S.refused[o.oid] = 1; G.log(`没跟${R.name}走。`); return; }
+      const look = G.shiftOutlook ? G.shiftOutlook(j) : null;
+      const go = await UI.modal({ title: `${R.name}点了你`, html: `<div class="talk"><div class="pt">${A.portrait(R.look, { mood: 'smile' })}</div><div><b>${R.name}</b><p>“行，你，上车！”</p>${r.line ? `<p class="why bad">“${r.line}”</p>` : ''}<p>${j.name} · ${j.start}–${j.end} · 说好的工钱 <b>¥${wage}</b>${j.meal ? '（管饭）' : ''}${j.qualityPay ? `。干得好最多另加 ¥${j.qualityPay}，不会因为手生把说好的工钱砍掉。` : '。'}</p><p class="muted">${j.desc}</p>${look ? look.html : ''}</div></div>`, buttons: [{ text: look && look.risk === 'faint' ? '知道可能倒下，还是去' : `上${j.ride.replace(/^.*的/, '')}`, value: 'go' }, { text: '先去吃饭', value: 'eat' }, { text: '先歇一个钟头', value: 'rest' }, { text: '先不去', cls: 'ghost', value: 'no' }] });
+      if (go === 'eat') { S.refused[o.oid] = 1; S.loc = 'food'; S.view = 'place'; G.log('先去吃饭，这班没上。'); UI.render(); return; }
+      if (go === 'rest') { S.refused[o.oid] = 1; G.advance(60); G.change({ stamina: 8 }); G.log('歇了一个钟头，这班没上。'); UI.toast('歇了一小时，体力 +8'); return; }
+      if (go !== 'go') { S.refused[o.oid] = 1; G.log(`没跟${R.name}走。`); return; }
       S.offers.list = S.offers.list.filter(x => x.oid !== o.oid);
       await UI.doJob(o, wage);
     });
@@ -852,10 +856,14 @@
     const tired = S.stats.stamina <= G.TH().staminaLow;
     const perf = G.perf(j.skill);
     const jbg = A.IMG.job(j.id);
-    const ch = await UI.modal({ title: `${j.name} · ${j.start} 开工`, bg: jbg, cls: 'job-modal', html: `<div class="job-hero" style="background-image:url(${jbg})"></div>`+`<p>${j.desc}</p>${tired ? '<p class="warn">你体力不太够，今天会更难熬。</p>' : ''}<div class="perfbox"><b>今天的手感</b>${perf.notes.map(n => `<span class="${n.bad ? 'bad' : n.good ? 'good' : ''}">${n.t}</span>`).join('')}</div><p class="muted">这是你第 ${times + 1} 次干这个活。</p>`, buttons: btns });
+    const lookNow = G.shiftOutlook ? G.shiftOutlook(j) : null;
+    if (lookNow && lookNow.risk !== 'ok') btns.push({ text: '先回去，这班不干', value: 'back', cls: 'ghost' });
+    const lowSta = lookNow && lookNow.risk === 'faint' ? '体力已经很低。这班干完可能眼前一黑，干完先去睡。' : (lookNow && lookNow.risk === 'hungry' ? '这班会把肚子掏空，收工先吃饭。' : null);
+    const ch = await UI.modal({ title: `${j.name} · ${j.start} 开工`, bg: jbg, cls: 'job-modal', html: `<div class="job-hero" style="background-image:url(${jbg})"></div>`+`<p>${j.desc}</p>${lookNow ? lookNow.html : ''}${tired ? '<p class="warn">你体力不太够，今天会更难熬。</p>' : ''}<div class="perfbox"><b>今天的手感</b>${perf.notes.map(n => `<span class="${n.bad ? 'bad' : n.good ? 'good' : ''}">${n.t}</span>`).join('')}</div><p class="muted">这是你第 ${times + 1} 次干这个活。说好的工钱 ¥${wage} 干完照给${j.qualityPay ? `，手艺好最多另加 ¥${j.qualityPay}` : ''}。</p>`, buttons: btns });
+    if (ch === 'back') { S.loc = 'corner'; G.log(`${j.name}坐到地方又回来了，这班没干，工钱没有。`); UI.toast('这班没干，工钱没有'); return; }
     let res;
     if (ch === 1) { const lv = perf.lv || 0; const q = Math.max(0.3, Math.min(0.95, 0.62 + lv * 0.05 + Math.random() * 0.1 - (1 - perf.win) * 0.4)); res = { completed: true, quality: q, mentalMult: 1.05 }; }
-    else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt });
+    else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt, lowSta });
     UI._beatVerb = "干到"; const out = G.finishJob(o, wage, res);
     for (const ml of (out.meals || [])) { UI.toast(`${ml.name} +${ml.got} 饱腹`); await UI.eatMoment({ id: 'jobmeal_' + ml.dish, name: ml.name, dish: ml.dish, price: ml.tier === '好' ? 16 : 10, flavor: ml.flavor, text: ml.text }, { delta: { hunger: ml.got, mental: ml.mental || 0 } }); }
     if (window.FX && (res.completed || res.hoursDone > 0.5)) await FX.micro('shiftend', { from: startAbs, to: S.time, bg: jbg, lines: [res.completed ? `${G.clock(startAbs)} 到 ${G.clock()}，这一班熬完了。` : `只干到 ${G.clock()} 就停了。`] });
@@ -1149,7 +1157,7 @@
         <tr><td>阅历</td><td>${S.attrs.exp}</td><td></td><td></td></tr>
         <tr><td>手机熟练</td><td>${S.attrs.phone}</td><td>强制睡倒</td><td>${(S.forced || {}).sleep || 0} 次</td></tr>
         <tr><td>衣服</td><td>${G.outfit().name}</td><td>身上东西</td><td>${Object.entries(S.items).filter(e => e[1] > 0).map(e => e[0] + '×' + e[1]).join('、') || '无'}</td></tr>
-        <tr><td>挣到</td><td>¥${S.earned}</td><td>晕倒</td><td>${S.collapses} / ${ST.collapse.maxTimes}</td></tr></table>
+        <tr><td>挣到</td><td>¥${S.earned}</td><td>晕倒</td><td>${S.collapses} 次</td></tr></table>
         <p>状态：${db}</p>
         <h4>技能（越高，小游戏判定区越宽、录取越容易）</h4>
         <ul class="skills">${['hands', 'knife', 'eye', 'pick'].map(k => { const lv = S.skills[k] || 0, cur = (S.xp || {})[k] || 0, need = lv >= C.skillXp.max ? 0 : G.xpNeed(lv); return `<li><b>${C.skillNames[k]} Lv${lv}</b><div class="sbar"><i style="width:${need ? Math.round(cur / need * 100) : 100}%"></i></div><small>${need ? `${cur}/${need}` : '满级'} · ${C.skillFx[k]}</small></li>`; }).join('')}</ul>
@@ -1192,6 +1200,7 @@
           <p class="share-hint">竖版分享图 · 朋友圈 / 小红书友好</p>
           <button class="btn primary" id="end-share">保存图片 / 晒一晒</button>
           <button class="btn" id="end-album">打开相册${(S.album && S.album.length) ? `（${S.album.length}）` : ''}</button>
+          ${S.ended.key === 'lose_collapse' ? '<button class="btn primary" id="end-resume">醒过来，接着过</button>' : ''}
           <button class="btn" id="end-again">再来一局</button>
           <button class="btn" id="end-title">回到标题</button>
         </div>
@@ -1217,6 +1226,7 @@
         prev.appendChild(img);
       }
     } catch (e) { console.error('share card', e); }
+    const resume = $('#end-resume'); if (resume) resume.onclick = () => { const r = G.resumeAfterCollapse && G.resumeAfterCollapse(); if (r && r.ok) { UI.toast('醒了。钱没再扣。'); UI.enter(); } };
     $('#end-share').onclick = doShare;
     $('#end-album').onclick = () => UI.album({ fromEnd: true, onShare: doShare });
     $('#end-again').onclick = () => { localStorage.removeItem('jxq_auto_v1'); UI.select(); };
