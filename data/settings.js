@@ -4,7 +4,7 @@ window.CONFIG = window.CONFIG || {};
 
 CONFIG.settings = {
   title: "勇闯酒仙桥",
-  subtitle: "网页小样 v1.0.3",
+  subtitle: "网页小样 v1.0.4",
   openCalendar: true,       // true = 没有强制结算日；日历一直往前走
   // 软提示用（不强制结束）：建议体验天数，写在目标卡上
   softPaceTip: "没有天数上限，想玩多久玩多久。撑不住了才算输。",

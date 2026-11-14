@@ -47,6 +47,7 @@
       g.key = k => false;
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['瓶子', g.bottles], ['血', '♥'.repeat(Math.max(0, g.lives)) || '—', g.lives <= 1 ? '#e8705a' : null]];
+      g.playBox = { x: 34, y: 92, w: 840, h: 400 };
       g.hint = () => g.revealed < 3 ? '点一堆垃圾翻开；数字是周围碎玻璃的个数' : null;
       g.update = dt => {
         g.pf += dt; g.cells.forEach(row => row.forEach(c => { if (c.rev) c.t += dt; })); g.coin.forEach(c => c.t += dt / .5); g.coin = g.coin.filter(c => c.t < 1);

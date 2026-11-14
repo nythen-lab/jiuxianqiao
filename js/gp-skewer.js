@@ -62,6 +62,7 @@
       g.key = k => { if (k === 'h') { useHint(); return true; } return false; };
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['已收', g.pairs * 2 + '/48'], ['连击', g.combo >= 2 ? '×' + g.combo : '—']];
+      g.playBox = { x: X0, y: Y0, w: COLS * CW, h: ROWS * CH + 130 };
       g.hint = () => g.pairs < 2 ? '点一块，再点一样的；线最多拐两个弯' : null;
       g.update = dt => {
         g.pf += dt; g.comboT = Math.max(0, g.comboT - dt); if (g.comboT <= 0) g.combo = 0; if (g.path) { g.pathT += dt; if (g.pathT > .45) g.path = null; }

@@ -78,6 +78,7 @@
         else if (k === 'up') { g.drag = null; g.pressed = null; }
       };
       g.hud = () => [['送到', g.delivered], ['命', '♥'.repeat(Math.max(0, g.lives)) || '—', g.lives <= 1 ? '#e8705a' : null]];
+      g.playBox = { x: BX, y: BY, w: NC * T, h: NR * T + 50 };
       g.hint = () => g.delivered === 0 ? (g.carry.length ? '把餐盒送到发亮的门口！别让汤凉了' : '骑到橙色外卖袋上取单') : null;
       const updateSmall = dt => {
         if (g.dead) { g.endWait -= dt; if (g.endWait <= 0 && !env.ended) env.end(g.final()); return; }

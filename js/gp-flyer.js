@@ -39,6 +39,7 @@
         let best = null; g.people.forEach(p => { if (p.state === 'walk' && ringOf(p) && (!best || Math.abs(p.x - PX) < Math.abs(best.x - PX))) best = p; }); if (best) throwTo(best); return true; } return false; };
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['递出', g.acc], ['传单', g.stock, g.stock < 8 ? '#e8705a' : null]];
+      g.playBox = { x: 16, y: 456, w: 868, h: 54 };
       g.hint = () => g.acc < 2 ? '圈圈缩到最小时点人（或按空格），灰脸别递' : g.danger ? '保安在看！先停手' : null;
       g.update = dt => {
         g.pf += dt; g.spawnT -= dt; if (g.spawnT <= 0) { spawn(); g.spawnT = rnd(.75, 1.35); }

@@ -54,6 +54,13 @@
     ctx.fillStyle = look.skin || '#f1c9a5'; fillStroke(ctx);
     ctx.fillStyle = look.hairColor || '#2b2522';
     ctx.beginPath(); ctx.ellipse(0, -18, 38, 20, 0, Math.PI, 0); ctx.fill();
+    if (look.hair === 'long') {
+      ctx.beginPath(); ctx.ellipse(-30, 34, 12, 30, 0.15, 0, Math.PI * 2); ctx.fill();
+      ctx.beginPath(); ctx.ellipse(30, 34, 12, 30, -0.15, 0, Math.PI * 2); ctx.fill();
+    } else if (look.hair === 'tied') {
+      ctx.beginPath(); ctx.arc(22, -52, 14, 0, Math.PI * 2); ctx.fill();
+      ctx.fillRect(18, -46, 10, 18);
+    }
     if (look.glasses) {
       ctx.strokeStyle = INK; ctx.lineWidth = 3.5;
       ctx.beginPath(); ctx.arc(-14, 4, 11, 0, Math.PI * 2); ctx.stroke();

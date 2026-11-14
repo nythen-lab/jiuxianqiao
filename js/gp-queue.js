@@ -54,6 +54,7 @@
       g.key = k => { if (k === 'space') { if (g.prompt) step(); else drawStock(); return true; } if (k === 'h') { g.hl = { t: 0 }; return true; } return false; };
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['名次', g.pos === 0 ? '到窗口' : `第 ${g.pos + 1} 位`, g.cutins ? '#e8705a' : null], ['牌', g.cleared + '/28']];
+      g.playBox = { x: 40, y: 90, w: 844, h: 410 };
       g.hint = () => g.cleared < 2 ? '点没被压着的牌：比手里的大 1 或小 1 就能出' : g.prompt ? '叮！快点右边的“跟上！”' : null;
       g.update = dt => {
         g.pf += dt; if (g.hl) { g.hl.t += dt; if (g.hl.t > 2.2) g.hl = null; }

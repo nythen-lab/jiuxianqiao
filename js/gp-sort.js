@@ -56,6 +56,7 @@
       g.key = k => { if (['1', '2', '3', '4'].includes(k)) { g.sortFront(+k - 1); return true; } return false; };
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['分对', g.ok], ['扔错', g.wrong, g.wrong ? '#e8705a' : null], ['漏', g.missed, g.missed ? '#e8705a' : null]];
+      g.playBox = { x: 54, y: 318, w: 836, h: 200 };
       g.hint = () => g.ok < 3 ? '把废品拖进对应的桶（或按数字键 1–4）' : null;
       g.update = dt => {
         g.pf += dt; g.speed = 92 + Math.min(60, env.t * 1.1); g.belt = (g.belt + g.speed * dt) % 40;

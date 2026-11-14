@@ -19,6 +19,11 @@
       case 'messy': hair = `<path d="M26 48 Q22 22 44 17 L48 22 L54 15 L58 22 Q78 20 74 48 Q70 34 62 33 L56 28 L50 33 L44 28 Q32 32 26 48Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`; break;
       case 'perm': hair = `<path d="M22 60 Q14 30 34 20 Q50 10 66 20 Q86 30 78 60 Q80 46 72 38 Q60 30 50 32 Q38 30 28 38 Q20 46 22 60Z" fill="${hc}" stroke="${INK}" stroke-width="2"/><g fill="${shade(hc,.15)}"><circle cx="30" cy="30" r="6"/><circle cx="44" cy="22" r="7"/><circle cx="58" cy="22" r="7"/><circle cx="70" cy="31" r="6"/></g>`; break;
       case 'long': hair = `<path d="M24 92 Q16 40 32 22 Q50 10 68 22 Q84 40 76 92 L68 92 Q72 56 66 40 Q56 30 50 31 Q40 30 34 40 Q28 56 32 92Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`; break;
+      case 'tied': hair = `<path d="M32 50 Q30 28 50 22 Q70 28 68 50 Q64 38 50 36 Q36 38 32 50Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+        <ellipse cx="64" cy="8" rx="12" ry="10" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+        <path d="M50 20 C48 6 58 2 64 10 C66 16 58 20 52 20Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+        <path d="M56 16 Q64 20 72 12" fill="none" stroke="${shade(hc, .45)}" stroke-width="2.6" stroke-linecap="round"/>
+        <path d="M70 14 Q88 26 82 46 Q74 28 66 20Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`; break;
       case 'cap': hair = `<path d="M25 44 Q26 18 50 17 Q74 18 75 44 Z" fill="${sh === '#26344f' ? '#1f2c46' : '#3a3a3a'}" stroke="${INK}" stroke-width="2"/><path d="M48 40 Q70 38 88 44 Q70 47 50 46Z" fill="#2b2b2b" stroke="${INK}" stroke-width="2"/>`; break;
     }
     const wr = (lk.wrinkles || old) ? `<path d="M36 41 Q40 39 44 41 M56 41 Q60 39 64 41 M38 69 Q41 71 43 69 M57 69 Q60 71 62 69 M34 30 Q50 27 66 30" stroke="${shade(skin,-.35)}" stroke-width="1.2" fill="none"/>` : '';
@@ -277,6 +282,11 @@
     // 头发简化
     let hair = `<path d="M62 58 Q60 34 80 32 Q100 34 98 58 Q94 46 86 44 Q80 42 74 44 Q66 48 62 58Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`;
     if (look.hair === 'grey' || look.hair === 'short') hair = `<path d="M62 58 Q60 36 80 34 Q100 36 98 58 Q94 46 86 44 Q74 42 62 58Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`;
+    if (look.hair === 'long') hair = `<path d="M58 50 Q50 28 80 26 Q110 28 102 52 L108 112 Q96 92 88 68 Q80 56 72 68 Q62 94 52 112Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`;
+    if (look.hair === 'tied') hair = `<path d="M64 58 Q62 36 80 34 Q98 36 96 58 Q92 46 80 44 Q68 46 64 58Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+      <ellipse cx="98" cy="26" rx="11" ry="9" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+      <path d="M86 32 Q98 16 108 30" fill="${hc}" stroke="${INK}" stroke-width="2"/>
+      <path d="M90 30 Q100 34 106 26" fill="none" stroke="${shade(hc, .45)}" stroke-width="2.4"/>`;
     if (look.hair === 'bald') hair = '';
     if (look.hair === 'messy') hair = `<path d="M60 60 Q54 34 72 30 L76 38 L84 28 L88 38 Q106 32 100 60 Q96 48 88 46 L80 40 L72 46 Q64 48 60 60Z" fill="${hc}" stroke="${INK}" stroke-width="2"/>`;
     if (look.glasses) hair += `<g fill="none" stroke="${INK}" stroke-width="1.6"><circle cx="72" cy="64" r="5"/><circle cx="88" cy="64" r="5"/><path d="M77 64 L83 64"/></g>`;

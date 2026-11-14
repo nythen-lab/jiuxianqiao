@@ -9,6 +9,16 @@
   const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, k) => a + (b - a) * k;
   const ease = { out: k => 1 - Math.pow(1 - k, 3), back: k => 1 + 2.7 * Math.pow(k - 1, 3) + 1.7 * Math.pow(k - 1, 2), inOut: k => k < .5 ? 2 * k * k : 1 - Math.pow(-2 * k + 2, 2) / 2 };
   const GP = window.GP = { games: {}, cur: null, speed: 1, W, H, FONT };
+  GP.hintPill = function (textWidth) { const w = Math.min(820, (textWidth || 0) + 36); return { x: W / 2 - w / 2, y: H - 46, w, h: 34 }; };
+  GP.boxesOverlap = (a, b) => !!(a && b && a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y);
+  GP.hintHitsPlay = function (game, text, ctx) {
+    if (!game || !text) return false;
+    if (game.hintExternal) return true;
+    if (!game.playBox) return false;
+    if (ctx) ctx.font = `16px ${FONT}`;
+    const width = ctx ? ctx.measureText(text).width : text.length * 16;
+    return GP.boxesOverlap(GP.hintPill(width), game.playBox);
+  };
   const U = GP.u = { rnd, ri, pick, clamp, lerp, ease, FONT };
 
   // ---------- 颜色 ----------
@@ -86,10 +96,10 @@
   GP.mount = function (id, root, o) {
     o = o || {}; const def = GP.games[id]; if (!def) return Promise.reject(new Error('no game ' + id));
     return new Promise(resolve => {
-      root.innerHTML = `<div class="gp"><canvas class="gp-cv" width="${W * 2}" height="${H * 2}" tabindex="0"></canvas><div class="gp-bar"><button class="mg-btn ghost" id="gp-help" type="button">玩法</button><span class="gp-note"></span><button class="mg-btn ghost" id="gp-quit" type="button">不干了，走人</button><button class="mg-btn" id="gp-done" type="button" style="display:none">收工 ▸</button></div></div>`;
+      root.innerHTML = `<div class="gp"><canvas class="gp-cv" width="${W * 2}" height="${H * 2}" tabindex="0"></canvas><p class="gp-note" id="gp-note"></p><div class="gp-bar"><button class="mg-btn ghost" id="gp-help" type="button">玩法</button><button class="mg-btn ghost" id="gp-quit" type="button">不干了，走人</button><button class="mg-btn" id="gp-done" type="button" style="display:none">收工 ▸</button></div></div>`;
       const cv = root.querySelector('canvas'), ctx = cv.getContext('2d'); ctx.scale(2, 2);
-      const bar = root.querySelector('.gp-bar'), note = bar.querySelector('.gp-note');
-      const fit = () => { if (!cv.isConnected) return; const wrap = root.getBoundingClientRect(); const maxH = Math.max(240, (window.innerHeight || 700) - 168); const w = Math.min(W, Math.max(260, (wrap.width || W) - 4), maxH * W / H); cv.style.width = Math.round(w) + 'px'; cv.style.height = Math.round(w * H / W) + 'px'; };
+      const bar = root.querySelector('.gp-bar'), note = root.querySelector('.gp-note');
+      const fit = () => { if (!cv.isConnected) return; const wrap = root.getBoundingClientRect(); const noteH = note.classList.contains('on') ? note.offsetHeight : 0; const maxH = Math.max(180, (window.innerHeight || 700) - 200 - noteH); const w = Math.min(W, Math.max(260, (wrap.width || W) - 4), maxH * W / H); cv.style.width = Math.round(w) + 'px'; cv.style.height = Math.round(w * H / W) + 'px'; };
       fit(); window.addEventListener('resize', fit);
       const first = !o.noTut && !seen('gp_seen_' + id);
       const bg = o.bg ? (() => { const i = new Image(); i.src = o.bg; return i; })() : null;
@@ -205,7 +215,12 @@
         ctx.restore();
         drawHud();
         if (env.banner) { const b = env.banner, a = b.t < .15 ? b.t / .15 : clamp((b.life - b.t) / .3, 0, 1); ctx.font = `700 21px ${FONT}`; const w = ctx.measureText(b.text).width + 44; ctx.globalAlpha = a; U.panel(ctx, W / 2 - w / 2, 58 - (1 - a) * 10, w, 38, 19, { top: 'rgba(40,30,22,.92)', bot: 'rgba(24,18,13,.92)' }); U.txt(ctx, b.text, W / 2, 84 - (1 - a) * 10, 21, b.color, 'center', true); ctx.globalAlpha = 1; }
-        if (env.phase === 'play' && game.hint) { const h = (game.hintPersistent || env.tutorial || env.t < 8) ? game.hint() : null; if (h) { ctx.font = `16px ${FONT}`; const w = Math.min(820, ctx.measureText(h).width + 36); U.panel(ctx, W / 2 - w / 2, H - 46, w, 34, 17, { top: 'rgba(10,8,6,.78)', bot: 'rgba(10,8,6,.78)', line: 'rgba(255,226,140,.5)' }); U.txt(ctx, h, W / 2, H - 24, 16, '#ffe9a8', 'center'); } }
+        if (env.phase === 'play' && game.hint) {
+          const h = (game.hintPersistent || env.tutorial || env.t < 8) ? game.hint() : null;
+          const outside = h && GP.hintHitsPlay(game, h, ctx);
+          if (note.textContent !== (outside ? h : '')) { note.textContent = outside ? h : ''; note.classList.toggle('on', !!outside); fit(); }
+          if (h && !outside) { ctx.font = `16px ${FONT}`; const w = Math.min(820, ctx.measureText(h).width + 36); U.panel(ctx, W / 2 - w / 2, H - 46, w, 34, 17, { top: 'rgba(10,8,6,.78)', bot: 'rgba(10,8,6,.78)', line: 'rgba(255,226,140,.5)' }); U.txt(ctx, h, W / 2, H - 24, 16, '#ffe9a8', 'center'); }
+        } else if (note.textContent) { note.textContent = ''; note.classList.remove('on'); fit(); }
         if (env.phase === 'count') { const n = 3 - Math.floor(env.cnt / .6); const k = (env.cnt % .6) / .6; const label = n > 0 ? String(n) : '开工！'; ctx.save(); ctx.translate(W / 2, H / 2); ctx.scale(1.5 - k * .5, 1.5 - k * .5); ctx.globalAlpha = 1 - k * .6; U.txt(ctx, label, 0, 28, n > 0 ? 100 : 80, '#fff1c4', 'center', true, 'rgba(40,20,4,.9)'); ctx.restore(); }
         if (env.phase === 'help') drawHelp();
         if (env.phase === 'end') { drawEnd(); btn.done = null; }
