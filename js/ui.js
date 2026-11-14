@@ -66,15 +66,57 @@
   // ---------- 选身份 ----------
   UI.select = function () {
     UI.show('select');
-    $('#select').innerHTML = `<h2 class="sel-h">你是谁？</h2><div class="cards">${C.identities.map(i => `
+    $('#select').innerHTML = `<h2 class="sel-h">过你自己的日子</h2><div class="cast-lead"><button class="btn primary" id="pick-self">自己来</button><p class="muted">选性别、年龄和以前干过的事。性别不决定你想认识谁。镇上原来的人还在镇上。</p></div><details class="old-ids"><summary>看看原来的人</summary><div class="cards">${C.identities.map(i => `
       <div class="idcard ${i.playable ? '' : 'locked'}" data-id="${i.id}">
         <div class="pt">${A.portrait(i.look)}</div><h3>${i.name} <small>${i.age}岁</small></h3><p class="tag">${i.tag}</p>
         ${i.playable ? `<p class="goal">🎯 ${i.goalText}</p>
         <ul class="mini"><li>体力 ${i.stats.stamina}/${i.maxStamina}</li><li>精神 ${i.stats.mental}</li><li>钱 ¥${i.startMoney}</li><li>脑力 ${i.attrs.brain}</li><li>阅历 ${i.attrs.exp}</li><li>手机 ${i.attrs.phone}</li></ul>
         <button class="btn primary pickid" data-id="${i.id}">就是${i.female ? '她' : '他'}</button>` : `<p class="soon">${i.unlockHint ? '🔒 ' + i.unlockHint : i.unlockAfterWin ? '🔒 用任意身份离开酒仙桥一次后解锁' : '即将推出'}</p>`}
-      </div>`).join('')}</div><button class="btn back" id="sel-back">返回</button>`;
+      </div>`).join('')}</div></details><button class="btn back" id="sel-back">返回</button>`;
     document.querySelectorAll('.pickid').forEach(b => b.onclick = () => { if (window.Music) Music.start(); UI.comic(b.dataset.id); });
+    $('#pick-self').onclick = () => { if (window.Music) Music.start(); UI.cast(); };
     $('#sel-back').onclick = UI.title;
+  };
+  UI.cast = function () {
+    UI.show('select');
+    const bgs = CAST.BACKGROUNDS.map(b => `<button type="button" class="btn sm cast-bg" data-bg="${b.id}"><b>${b.name}</b><small>${b.blurb}</small></button>`).join('');
+    const seasons = C.seasons.list.map(s => `<button type="button" class="btn sm sp${(UI._season || C.seasons.defaultStart) === s.id ? ' on' : ''}" data-season="${s.id}">${s.icon} ${s.name}</button>`).join('');
+    $('#select').innerHTML = `<div class="cast-form"><h2>你是谁</h2>
+      <label>怎么称呼 <input id="cast-name" maxlength="6" placeholder="你" autocomplete="off"></label>
+      <div class="cast-row" id="cast-gender"><span>性别</span><button type="button" data-g="m">男</button><button type="button" data-g="f">女</button><button type="button" data-g="x" class="on">不标明</button></div>
+      <div class="cast-row" id="cast-pref"><span>想认识</span><button type="button" data-p="m">男性</button><button type="button" data-p="f">女性</button><button type="button" data-p="any">都可以</button><button type="button" data-p="none" class="on">先不谈</button></div>
+      <label>年龄 <input id="cast-age" inputmode="numeric" value="28"> <small>填整数，18 到 70。年纪只影响样子和一点点体力上限，不会把日子过废。</small></label>
+      <p>以前干过</p><div class="cast-bgs">${bgs}</div>
+      <p>样子</p><div id="cast-looks" class="cast-looks"></div>
+      <div class="season-pick"><span>开局季节：</span>${seasons}</div>
+      <p id="cast-err" class="why bad"></p>
+      <button class="btn primary" id="cast-go">就这样，开始</button>
+      <button class="btn" id="cast-back">返回</button></div>`;
+    let gender = 'x', pref = 'none', bg = 'bit', look = 0;
+    const mark = (root, attr, val) => root.querySelectorAll('button').forEach(b => b.classList.toggle('on', b.dataset[attr] === val));
+    const paint = () => {
+      const pack = CAST.LOOKS[gender] || CAST.LOOKS.x;
+      const age = parseInt($('#cast-age').value, 10);
+      $('#cast-looks').innerHTML = pack.map((L, i) => `<button type="button" class="cast-look ${i === look % pack.length ? 'on' : ''}" data-look="${i}">${A.portrait(Object.assign({ age: age || 28 }, L.look))}<span>${L.label}</span></button>`).join('');
+      $('#cast-looks').querySelectorAll('[data-look]').forEach(b => b.onclick = () => { look = +b.dataset.look; paint(); });
+    };
+    mark($('#cast-gender'), 'g', gender); mark($('#cast-pref'), 'p', pref);
+    document.querySelector(`.cast-bg[data-bg="${bg}"]`).classList.add('on');
+    $('#cast-gender').onclick = e => { const b = e.target.closest('[data-g]'); if (!b) return; gender = b.dataset.g; mark($('#cast-gender'), 'g', gender); paint(); };
+    $('#cast-pref').onclick = e => { const b = e.target.closest('[data-p]'); if (!b) return; pref = b.dataset.p; mark($('#cast-pref'), 'p', pref); };
+    document.querySelectorAll('.cast-bg').forEach(b => b.onclick = () => { bg = b.dataset.bg; document.querySelectorAll('.cast-bg').forEach(x => x.classList.toggle('on', x === b)); });
+    document.querySelectorAll('.season-pick [data-season]').forEach(b => b.onclick = () => { UI._season = b.dataset.season; document.querySelectorAll('.season-pick .sp').forEach(x => x.classList.toggle('on', x === b)); });
+    $('#cast-age').oninput = paint;
+    $('#cast-back').onclick = UI.select;
+    $('#cast-go').onclick = () => {
+      const age = Number($('#cast-age').value);
+      const built = CAST.build({ age, gender, pref, bg, look, name: $('#cast-name').value });
+      if (built.error) { $('#cast-err').textContent = built.error; return; }
+      G.nextSeasonStart = UI._season || C.seasons.defaultStart;
+      G.newGame('self', built.identity);
+      UI.enter(true);
+    };
+    paint();
   };
 
   // ---------- 开场漫画 + 目标卡 ----------
@@ -307,7 +349,7 @@
         const offers = G.offers();
         h += `<div class="window">${ST.windows[win].label}</div>${G.dayCondText() ? ` <div class="window warnw">${G.dayCondText()}</div>` : ''}`;
         if (!offers.length) h += `<p class="muted">这会儿没有招工的。再等等，车随时会来。</p>`;
-        h += '<div class="offers">';
+        h += '<section class="act-sec" data-kind="earn"><h4 class="act-sec-h"><span class="act-ico">🧰</span> 挣钱的活 <small>路口现招，问到了才有工钱</small></h4><div class="offers">';
         offers.forEach(o => { const j = C.jobs.find(x => x.id === o.job), R = C.recruiters[o.recruiter]; const ref = S.refused[o.oid];
           const hi = G.hireInfo(o); const sk = j.skill ? `${C.skillNames[j.skill]} Lv${S.skills[j.skill] || 0}` : '';
           const meta = [`${j.start}–${j.end}`, j.meal ? ('管饭' + ((C.jobMeals && C.jobMeals[j.id]) ? ' · ' + C.jobMeals[j.id].map(m => m.tier).join('+') : '')) : '', `车 ${G.clock(o.gone)} 前走`, sk ? `<span class="skt">用到 ${sk}</span>` : '', j.needClean ? '<span class="need">要求无案底</span>' : ''].filter(Boolean).map(x => `<span>${x}</span>`).join('');
@@ -316,7 +358,7 @@
               <div class="o-quote" title="${R.name}：“${j.shout}”">“${j.shout}”</div><div class="o-meta">${meta}</div></div>
             <button class="btn ${ref ? '' : 'primary'} ask" data-o="${o.oid}" ${ref || hi.block ? 'disabled' : ''}>${ref ? '被拒了' : hi.block ? '干不动' : '上前问'}<small>大约 ${hi.pct}%</small></button></div>`; });
         const blk = G.jobBlock(); if (blk) h += `<p class="why bad">⚠ ${blk}。先去吃饭 / 睡觉。</p>`;
-        h += '</div>';
+        h += '</div></section>';
         A2.push(btn('wait30', '再等等', '30 分钟'));
         if (S.flags.chatKey !== S.offers.key) A2.push(btn('chat', '跟旁边等活的人聊几句', '30 分钟 · 每个招工时段一次'));
       } else {
@@ -340,7 +382,7 @@
     if (S.loc === 'riverside' && open) {
       const R = C.riverside;
       if (G.inHours(R.karaoke.from, R.karaoke.to)) A2.push(btn('karaoke', R.karaoke.name, `¥${R.karaoke.price} · 20 分钟 · 精神+${R.karaoke.mental}`));
-      A2.push(btn('fish', R.fish.name, `1 小时 · 免费 · 精神+${R.fish.mental} · 可能碰到熟人`));
+      A2.push(btn('fish', R.fish.name, `1 小时 · 免费 · 浮漂下沉时点一下或按空格提竿，按住上升、松开下降`));
     }
     if (S.loc === 'inn' || S.loc === 'netcafe' || S.loc === 'dormtower' || S.loc === 'home') {
       if (G.bedValid()) { const L = C.lodging.find(l => l.id === S.bed.id); h += `<div class="window">已付钱：${L.name}（到 ${G.clock(S.bed.until)}）</div>`; }
@@ -402,7 +444,15 @@
     }
     if ((S.debts || []).some(d => !d.paid)) h = `<div class="window ${(S.debts || []).some(d => !d.paid && G.dayNum() > d.due) ? 'warnw' : ''}">欠着钱：${S.debts.filter(d => !d.paid).map(d => `${d.name} ¥${d.amt}（第${d.due}天前还）`).join('、')}</div>` + h;
     const pn = $('#panel'); const keep = pn.dataset.loc === S.loc ? pn.scrollTop : 0;
-    pn.innerHTML = head + `<div class="act-grid">${A2.join('')}</div>` + `<div class="ctx">${lifeP.top}${h}${lifeP.html}${shop}</div>`; pn.scrollTop = keep; pn.dataset.loc = S.loc;
+    const grouped = (window.SHOWS ? SHOWS.SECTIONS : []).map(([k, title, ico, hint]) => {
+      const bits = A2.filter(html => (window.SHOWS.actKind((String(html).match(/data-a="([^"]+)"/) || [])[1] || '') === k));
+      if (!bits.length) return '';
+      return `<section class="act-sec" data-kind="${k}"><h4 class="act-sec-h"><span class="act-ico">${ico}</span> ${title} <small>${hint}</small></h4><div class="act-grid">${bits.join('')}</div></section>`;
+    }).join('');
+    const actsHtml = window.SHOWS ? grouped : `<div class="act-grid">${A2.join('')}</div>`;
+    if (lifeP.html && lifeP.html.includes('bath-cards')) lifeP.html = `<section class="act-sec" data-kind="spend"><h4 class="act-sec-h"><span class="act-ico">💸</span> 花钱享受 <small>洗澡，价格和效果写在卡片上</small></h4>${lifeP.html}</section>`;
+    const shopHtml = shop ? `<section class="act-sec" data-kind="spend"><h4 class="act-sec-h"><span class="act-ico">💸</span> 花钱享受 <small>店里的东西</small></h4>${shop}</section>` : '';
+    pn.innerHTML = head + actsHtml + `<div class="ctx">${lifeP.top}${h}${lifeP.html}${shopHtml}</div>`; pn.scrollTop = keep; pn.dataset.loc = S.loc;
     if ($('#open-map')) $('#open-map').onclick = () => UI.map();
     UI.bindBedPreview();
     $('#panel').querySelectorAll('.act').forEach(b => b.onclick = () => UI.doAct(b.dataset.a));
@@ -852,29 +902,35 @@
     UI.render();
     if (window.FX) await FX.micro('commute', { from: tLeave, to: S.time, bg: A.IMG.job(j.id), lines: [`${j.ride}晃了一路，到了。`] });
     const times = S.jobsDone[j.id] || 0;
-    const btns = [{ text: '开工' }]; if (times >= 2) btns.push({ text: '熟手了：直接干完' });
+    const btns = [{ text: '开始干活', value: 'go' }]; if (times >= 2) btns.push({ text: '熟手了：直接干完', value: 'skip' });
     const tired = S.stats.stamina <= G.TH().staminaLow;
     const perf = G.perf(j.skill);
     const jbg = A.IMG.job(j.id);
     const lookNow = G.shiftOutlook ? G.shiftOutlook(j) : null;
     if (lookNow && lookNow.risk !== 'ok') btns.push({ text: '先回去，这班不干', value: 'back', cls: 'ghost' });
     const lowSta = lookNow && lookNow.risk === 'faint' ? '体力已经很低。这班干完可能眼前一黑，干完先去睡。' : (lookNow && lookNow.risk === 'hungry' ? '这班会把肚子掏空，收工先吃饭。' : null);
-    const ch = await UI.modal({ title: `${j.name} · ${j.start} 开工`, bg: jbg, cls: 'job-modal', html: `<div class="job-hero" style="background-image:url(${jbg})"></div>`+`<p>${j.desc}</p>${lookNow ? lookNow.html : ''}${tired ? '<p class="warn">你体力不太够，今天会更难熬。</p>' : ''}<div class="perfbox"><b>今天的手感</b>${perf.notes.map(n => `<span class="${n.bad ? 'bad' : n.good ? 'good' : ''}">${n.t}</span>`).join('')}</div><p class="muted">这是你第 ${times + 1} 次干这个活。说好的工钱 ¥${wage} 干完照给${j.qualityPay ? `，手艺好最多另加 ¥${j.qualityPay}` : ''}。</p>`, buttons: btns });
-    if (ch === 'back') { S.loc = 'corner'; G.log(`${j.name}坐到地方又回来了，这班没干，工钱没有。`); UI.toast('这班没干，工钱没有'); return; }
+    const gpMap = { site: 'site', coldstore: 'cold', print: 'print', antigen: 'flip', dishwash: 'dish' };
+    const gpHelp = window.GP && GP.games && gpMap[j.game] && GP.games[gpMap[j.game]] ? GP.games[gpMap[j.game]].help : null;
+    const brief = window.PAY ? PAY.briefJob(j, wage, gpHelp) : null;
+    const briefHtml = brief ? `<div class="brief"><p><b>这班要干什么</b> ${brief.objective}</p><ol class="brief-help">${brief.help.map(x => `<li>${x}</li>`).join('')}</ol><p><b>什么时候结束</b> ${brief.ends}</p><ul class="brief-pay">${brief.pay.map(x => `<li>${x}</li>`).join('')}</ul></div>` : '';
+    const ch = await UI.modal({ title: `${j.name} · 开工前`, bg: jbg, cls: 'job-modal', html: `<div class="job-hero" style="background-image:url(${jbg})"></div>`+`<p>${j.desc}</p>${briefHtml}${lookNow ? lookNow.html : ''}${tired ? '<p class="warn">你体力不太够，今天会更难熬。</p>' : ''}<div class="perfbox"><b>今天的手感</b>${perf.notes.map(n => `<span class="${n.bad ? 'bad' : n.good ? 'good' : ''}">${n.t}</span>`).join('')}</div><p class="muted">这是你第 ${times + 1} 次干这个活。点「开始干活」才算开工。</p>`, buttons: btns });
+    if (ch !== 'go' && ch !== 'skip') { S.loc = 'corner'; G.log(`${j.name}还没开工就回来了，工钱没有。`); UI.toast('这班没干，工钱没有'); return; }
     let res;
-    if (ch === 1) { const lv = perf.lv || 0; const q = Math.max(0.3, Math.min(0.95, 0.62 + lv * 0.05 + Math.random() * 0.1 - (1 - perf.win) * 0.4)); res = { completed: true, quality: q, mentalMult: 1.05 }; }
-    else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt, lowSta });
+    if (ch === 'skip') { const lv = perf.lv || 0; const q = Math.max(0.3, Math.min(0.95, 0.62 + lv * 0.05 + Math.random() * 0.1 - (1 - perf.win) * 0.4)); res = { completed: true, quality: q, mentalMult: 1.05 }; }
+    else res = await UI.minigame(j.game, { tired, perf, hands: S.skills.hands, knife: S.skills.knife || 0, eye: S.skills.eye, skin: G.identity().look.skin, shirt: G.identity().look.shirt, lowSta, payNote: brief && brief.pay, briefed: true });
     UI._beatVerb = "干到"; const out = G.finishJob(o, wage, res);
     for (const ml of (out.meals || [])) { UI.toast(`${ml.name} +${ml.got} 饱腹`); await UI.eatMoment({ id: 'jobmeal_' + ml.dish, name: ml.name, dish: ml.dish, price: ml.tier === '好' ? 16 : 10, flavor: ml.flavor, text: ml.text }, { delta: { hunger: ml.got, mental: ml.mental || 0 } }); }
     if (window.FX && (res.completed || res.hoursDone > 0.5)) await FX.micro('shiftend', { from: startAbs, to: S.time, bg: jbg, lines: [res.completed ? `${G.clock(startAbs)} 到 ${G.clock()}，这一班熬完了。` : `只干到 ${G.clock()} 就停了。`] });
-    let head = res.completed ? '下班了' : res.fired ? '被开除了' : '跑路了';
-    let body = res.completed ? `<p>干完了一整班，拿到 <b>¥${out.pay}</b>${res.fines ? `（扣了 ${res.fines} 元）` : ''}。</p>${res.quality != null ? `<p>干活质量 <b>${Math.round(res.quality * 100)}%</b>${out.bonus ? `，${out.bonus > 0 ? `组长多给了 ¥${out.bonus}` : `干得不好，扣了 ¥${-out.bonus}`}` : ''}${out.skillPay ? `，熟手补贴 +¥${out.skillPay}` : ''}。</p>` : ''}${res.summary ? `<p class="muted">${res.summary}</p>` : ''}` :
-      res.fired ? `<p>“你别干了！”${j.quitPay === 'hourly' ? `厂里按小时结钱：干了 ${res.hoursDone.toFixed(1)} 小时，只给算 ${Math.max(0, Math.floor(res.hoursDone - 1))} 小时，拿到 <b>¥${out.pay}</b>。` : '一分钱也没拿到。'}</p>` :
-      `<p>${out.quitLine || '你走了。'}${out.pay > 0 ? `结了 <b>¥${out.pay}</b>（整班原本能拿 ¥${out.quitFull || 0}）。` : '<b>一分钱也没给。</b>'}</p>`;
+    const payLines = out.lines || [];
+    const paySum = payLines.reduce((a, x) => a + x.amt, 0);
+    let head = res.noPay ? '还没开工' : res.completed ? '下班了' : res.fired ? '被开除了' : '跑路了';
+    let body = `<ul class="pay-lines">${payLines.map(x => `<li><span>${x.name}</span><b>${x.amt < 0 ? '−' : '+'}¥${Math.abs(x.amt)}</b></li>`).join('')}</ul><p class="pay-sum">实发 <b>¥${out.pay}</b> · 上面加起来是 ¥${paySum}</p>`;
+    if (res.summary) body += `<p class="muted">${res.summary}</p>`;
+    if (out.quitLine) body += `<p>${out.quitLine}</p>`;
+    if (res.quality != null && !res.noPay) body += `<p class="muted">干活质量 ${Math.round(res.quality * 100)}%。</p>`;
     if ((out.meals || []).length) body += `<p class="why">${out.meals.map(m => `管的饭：${m.name}（${m.tier === '好' ? '实在' : m.tier === '差' ? '凑合不起来' : '凑合'}，饱腹 +${m.got}）`).join('；')}。收工时饱腹 ${out.hungerEnd}。</p>`;
-    if (out.cut) body += `<p class="why">中介从工钱里抽走了 <b>¥${out.cut}</b>${out.gross ? `（原本 ¥${out.gross}）` : ''}。</p>`;
-    if (out.delayed) body += `<p class="why bad">工钱 ¥${out.delayed} 没当场给：“过两天一起结。”（会自动到账，但这几天手头更紧）</p>`;
-    if (out.unpaid) body += `<p class="why bad">工钱 ¥${Math.max(0, (out.gross || 0) - (out.cut || 0))} 没拿到。中介说厂里没打款，电话再打就不接了。</p>`;
+    if (out.delayed) body += `<p class="why bad">改日再结的那笔已经从今天的实发里扣掉，到了会自动进口袋，也算进累计工钱。</p>`;
+    if (out.unpaid) body += `<p class="why bad">厂里没打款。今天的实发就是上面的合计。</p>`;
     if (res.completed && j.debuff) body += `<p class="warn">${C.debuffs[j.debuff].name}：${C.debuffs[j.debuff].text}</p>`;
     if (out.firstJob) body += `<p class="story">📷 第一次干「${j.name}」——已收入相册。</p>`;
     if (out.xp) body += `<p class="good">${C.skillNames[out.xp.key]} 经验 +${out.xp.amt}${out.xp.up ? ` → <b>升到 Lv${out.xp.lv}！</b>` : out.xp.need ? `（Lv${out.xp.lv}，${out.xp.cur}/${out.xp.need}）` : '（满级）'}</p>`;
@@ -1156,8 +1212,11 @@
         <tr><td>街头口碑</td><td>${S.rep}</td><td>脑力</td><td>${S.attrs.brain}</td></tr>
         <tr><td>阅历</td><td>${S.attrs.exp}</td><td></td><td></td></tr>
         <tr><td>手机熟练</td><td>${S.attrs.phone}</td><td>强制睡倒</td><td>${(S.forced || {}).sleep || 0} 次</td></tr>
+        <tr><td colspan="4">手机：转账和网吧用得上。低于 4 时转账多花时间。在银行转过账，或在网吧买过时间，每天熟一点，最高 9。</td></tr>
         <tr><td>衣服</td><td>${G.outfit().name}</td><td>身上东西</td><td>${Object.entries(S.items).filter(e => e[1] > 0).map(e => e[0] + '×' + e[1]).join('、') || '无'}</td></tr>
-        <tr><td>挣到</td><td>¥${S.earned}</td><td>晕倒</td><td>${S.collapses} 次</td></tr></table>
+        <tr><td>累计工钱</td><td>¥${S.wageBook || 0}</td><td>挣到</td><td>¥${S.earned}</td></tr>
+        <tr><td>晕倒</td><td>${S.collapses} 次</td><td></td><td></td></tr></table>
+        <p class="muted tiny">累计工钱只算干活和卖东西。花钱、存取、借款都不倒扣。档位是 1000、2000、3000。</p>
         <p>状态：${db}</p>
         <h4>技能（越高，小游戏判定区越宽、录取越容易）</h4>
         <ul class="skills">${['hands', 'knife', 'eye', 'pick'].map(k => { const lv = S.skills[k] || 0, cur = (S.xp || {})[k] || 0, need = lv >= C.skillXp.max ? 0 : G.xpNeed(lv); return `<li><b>${C.skillNames[k]} Lv${lv}</b><div class="sbar"><i style="width:${need ? Math.round(cur / need * 100) : 100}%"></i></div><small>${need ? `${cur}/${need}` : '满级'} · ${C.skillFx[k]}</small></li>`; }).join('')}</ul>

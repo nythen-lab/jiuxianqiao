@@ -33,10 +33,10 @@ C.feasts = [
   const M = CONFIG.townMap;
   M.walkPins = JSON.parse(JSON.stringify(M.pins));
   const view = {
-    corner: [50, 54], food: [26, 46], clothes: [16, 69], inn: [35, 28], bar: [22, 83],
-    bank: [63, 71], bath: [37, 61], netcafe: [84, 56], lottery: [73, 86], clinic: [44, 34],
-    agency: [92, 74], riverside: [70, 22], dormtower: [94, 44], temple: [13, 36],
-    sales: [7, 52], hall: [43, 77], kinder: [57, 92], home: [71, 49]
+    corner: [50, 50], food: [28, 64], clothes: [14, 72], inn: [18, 24], bar: [24, 84],
+    bank: [66, 74], bath: [38, 72], netcafe: [82, 58], lottery: [74, 88], clinic: [62, 30],
+    agency: [92, 76], riverside: [78, 20], dormtower: [94, 42], temple: [10, 40],
+    sales: [8, 56], hall: [40, 84], kinder: [54, 90], home: [72, 48]
   };
   Object.keys(view).forEach(id => { if (M.pins[id]) M.pins[id] = view[id]; });
   const notes = {};

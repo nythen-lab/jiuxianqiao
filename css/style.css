@@ -1335,6 +1335,43 @@ dl.bio dt { color:#f4c56a; } dl.bio dd { margin:0; } dl.bio dd.lockbio { color:v
 .nethub h2, .nethub .mbtns { flex:0 0 auto; }
 .outlook { margin:8px 0; padding:8px 10px; border-radius:10px; background:rgba(255,255,255,.05); }
 .outlook ul { margin:4px 0; padding-left:18px; } .outlook li { margin:2px 0; }
+.act-sec { margin:0 0 12px; } .act-sec-h { margin:8px 0 6px; font-size:14px; display:flex; gap:6px; align-items:baseline; flex-wrap:wrap; } .act-sec-h small { font-weight:400; opacity:.75; }
+.pay-lines { list-style:none; margin:8px 0; padding:0; } .pay-lines li { display:flex; justify-content:space-between; gap:12px; padding:4px 0; border-bottom:1px solid rgba(255,236,200,.12); } .pay-sum { font-size:16px; }
+.cast-form { max-width:720px; margin:24px auto; padding:12px 16px 32px; } .cast-form label, .cast-row { display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin:10px 0; } .cast-form input { font:inherit; padding:6px 8px; border-radius:8px; border:1px solid rgba(255,230,190,.35); background:#1c1612; color:#f6ecd6; }
+.cast-bgs, .cast-looks, .cast-lead { display:flex; flex-wrap:wrap; gap:8px; } .cast-bg { display:flex; flex-direction:column; align-items:flex-start; max-width:200px; } .cast-bg.on, .cast-row button.on, .cast-look.on { outline:2px solid #e0a02e; }
+.cast-look { background:transparent; border:0; color:inherit; } .cast-look svg { width:72px; height:72px; } .old-ids { margin:16px 0; } .brief ol, .brief ul { margin:4px 0 8px; padding-left:1.2em; }
+.act-ico { font-style:normal; }
+.bath-scene { position:relative; height:240px; border-radius:16px; overflow:hidden; background:linear-gradient(#6a5a48,#2a241c); }
+.b-figure { position:absolute; left:46%; bottom:54px; width:70px; height:110px; } .b-face { position:absolute; left:16px; top:0; width:36px; height:36px; border-radius:50%; background:#e7c2a4; } .b-towel { position:absolute; left:4px; top:40px; width:62px; height:70px; border-radius:16px 16px 10px 10px; background:linear-gradient(#f4efe4,#d7c3a2); } .b-shoulder { position:absolute; left:0; top:38px; width:70px; height:16px; border-radius:8px; background:#e7c2a4; }
+.b-streams i { position:absolute; top:8px; left:var(--x); width:3px; height:70px; background:linear-gradient(#dff6ff, transparent); opacity:0; }
+.bath-scene.wash[data-step="water"] .b-streams i, .bath-scene.rub[data-step="rinse"] .b-streams i { animation:bathRain .5s linear var(--d) infinite; opacity:.85; }
+@keyframes bathRain { to { transform:translateY(120px); opacity:.2; } }
+.b-dust { position:absolute; left:42%; bottom:90px; width:80px; height:24px; background:radial-gradient(circle,#8a8074 20%,transparent 70%); opacity:.8; }
+.bath-scene[data-step="dust"] .b-dust, .bath-scene[data-step="shoulders"] .b-dust { opacity:.15; transition:opacity 1s; }
+.bath-scene[data-step="shoulders"] .b-shoulder, .bath-scene[data-step="exhale"] .b-shoulder { transform:translateY(4px); transition:transform .8s; }
+.b-pool { position:absolute; left:18%; right:18%; bottom:18px; height:54px; border-radius:50%; background:radial-gradient(ellipse,#8fd0ea,#2a6a88); opacity:.35; }
+.bath-scene.soak .b-pool, .bath-scene.rub[data-step="sink"] .b-pool { opacity:1; }
+.bath-scene.soak[data-step="enter"] .b-figure { transform:translateY(18px); transition:transform 1s; }
+.b-ripples b { position:absolute; left:50%; bottom:36px; width:20px; height:8px; margin-left:-10px; border:2px solid rgba(255,255,255,.5); border-radius:50%; opacity:0; }
+.bath-scene.soak[data-step="ripple"] .b-ripples b, .bath-scene.soak[data-step="exhale"] .b-ripples b { animation:bathRip 1.6s ease-out infinite; }
+.bath-scene.soak[data-step="ripple"] .b-ripples b:nth-child(2) { animation-delay:.4s; } .bath-scene.soak[data-step="ripple"] .b-ripples b:nth-child(3) { animation-delay:.8s; }
+@keyframes bathRip { to { transform:scale(6); opacity:0; } }
+.b-steam { position:absolute; left:30%; right:30%; bottom:40px; height:80px; background:radial-gradient(ellipse,rgba(255,255,255,.35),transparent 70%); opacity:0; }
+.bath-scene[data-step="steam"] .b-steam, .bath-scene[data-step="exhale"] .b-steam { opacity:.8; }
+.b-hand { position:absolute; right:22%; bottom:90px; width:36px; height:14px; border-radius:8px; background:#c9b49a; opacity:0; }
+.bath-scene.rub[data-step="scrub"] .b-hand { opacity:1; animation:bathScrub .6s ease-in-out infinite alternate; }
+@keyframes bathScrub { to { transform:translateX(-28px); } }
+.b-cap { position:absolute; left:12px; right:12px; bottom:8px; margin:0; text-align:center; color:#fff6e4; text-shadow:0 1px 2px #000; }
+.fq-stage { position:relative; height:220px; display:flex; align-items:flex-end; justify-content:center; }
+.fq-cyl { position:relative; width:120px; height:150px; transform-origin:50% 80%; }
+.fq-body { position:absolute; left:8px; right:8px; top:36px; bottom:8px; border-radius:10px; background:repeating-linear-gradient(90deg,#8a5a32 0 8px,#e0b56a 8px 14px,#6b4124 14px 18px); box-shadow:inset 0 0 0 3px #4a2c16; }
+.fq-rim { position:absolute; left:0; right:0; top:22px; height:22px; border-radius:50%; background:radial-gradient(ellipse at 50% 40%,#f0d7a4,#a56b3a 70%); z-index:2; }
+.fq-sticks { position:absolute; left:16px; right:16px; top:0; height:48px; z-index:3; }
+.fq-sticks i { position:absolute; bottom:0; width:6px; height:46px; border-radius:3px; background:linear-gradient(90deg,#d7b56a,#f6e7c0 40%,#a67c3a); transform:rotate(var(--r)); }
+.fq-fall { position:absolute; left:62%; bottom:30px; padding:8px 6px; background:#f3e2b0; color:#5a3418; font-weight:800; border-radius:3px; }
+.fq-paper { position:absolute; inset:20px 10%; display:flex; align-items:center; justify-content:center; }
+.fq-sheet { background:#f6ecd4; color:#3a2a18; padding:16px 18px; border:8px solid #8a3030; box-shadow:inset 0 0 0 3px #e6c878; max-width:280px; }
+.fq-no { color:#8a3030; } .fq-verse { font-size:20px; margin:8px 0; } .fq-read { font-size:14px; }
 .net-top { flex:0 0 auto; display:flex; gap:8px 10px; flex-wrap:wrap; align-items:center; justify-content:flex-start; font-size:14px; line-height:1.35; margin:0 0 6px; padding:0 2px 0 0; }
 .net-cardtime { flex:0 0 auto; white-space:nowrap; }
 .net-buy { display:flex; gap:4px; flex:1 1 200px; flex-wrap:wrap; min-width:0; }

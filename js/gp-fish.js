@@ -4,36 +4,87 @@
   const GX = 676, GY = 78, GW = 64, GH = 392;
   const FISH = [{ n: '鲫鱼', d: .35, c: '#9aa8b0' }, { n: '鲤鱼', d: .5, c: '#d89a3a' }, { n: '草鱼', d: .6, c: '#6a8a6a' }, { n: '鲶鱼', d: .75, c: '#5a5a62' }];
   if (CONFIG.fishKinds && CONFIG.fishKinds.length) { FISH.splice(0,FISH.length,...CONFIG.fishKinds.map((f,i)=>({n:f.name,d:[.35,.5,.6,.7][i%4],c:['#9aa8b0','#d89a3a','#6a8a6a','#5a5a62'][i%4]}))); }
+  GP.fishBoot = function (kind, rng) {
+    const R = rng || Math.random;
+    return { phase: 'wait', pt: 0, biteAt: 1.2 + R() * 1.3, biteWin: 2.15, mercy: 1, hook: 160, hv: 0, hh: 168 - kind.d * 16, fish: 180, fv: 0, ft: 180, fcd: 1.1, prog: .36, held: false, drag: null, caught: false, lost: false, kind, d: kind.d, pf: 0, ripples: [], missedBite: false, inBar: 0, total: 0, outT: 0, auto: null, bob: 0, jump: 0, splashT: 0, endT: 0, _rng: R };
+  };
+  GP.fishStep = function (g, dt) {
+    const R = g._rng || Math.random;
+    const ev = {};
+    const d = g.d || (g.kind && g.kind.d) || .4;
+    if (g.phase === 'wait') {
+      g.pt += dt;
+      if (g.pt >= g.biteAt) { g.phase = 'bite'; g.pt = 0; ev.bite = 1; }
+    } else if (g.phase === 'bite') {
+      g.pt += dt;
+      if (g.pt > g.biteWin) {
+        if (g.mercy > 0) { g.mercy--; g.phase = 'wait'; g.pt = 0; g.biteAt = 0.7 + R() * 0.5; ev.mercy = 1; }
+        else { g.missedBite = true; g.phase = 'lost'; ev.lost = 1; }
+      }
+    } else if (g.phase === 'fight') {
+      g.pt += dt; g.total = (g.total || 0) + dt;
+      g.fcd -= dt;
+      if (g.fcd <= 0) {
+        const local = R() < 0.72;
+        const jump = local ? (70 + d * 30) * (R() < .5 ? -1 : 1) * (0.5 + R()) : (R() * (GH - 40) + 20 - g.fish);
+        g.ft = clamp(g.fish + jump, 16, GH - 16);
+        g.fcd = 1.25 + R() * 1.2 * (1.05 - d * 0.2);
+      }
+      const cap = 46 + d * 22;
+      const want = clamp(g.ft - g.fish, -cap, cap);
+      g.fv += (want - g.fv) * Math.min(1, dt * 1.5);
+      g.fish = clamp(g.fish + g.fv * dt, 10, GH - 10);
+      const top = 0, bot = GH - g.hh;
+      if (g.drag != null) {
+        const target = clamp(g.drag - g.hh / 2, top, bot);
+        g.hv += ((target - g.hook) * 8 - g.hv * 3.2) * dt;
+        g.hv = clamp(g.hv, -170, 170);
+      } else {
+        g.hv += (g.held ? -200 : 168) * dt;
+        g.hv *= Math.exp(-dt * 0.65);
+        g.hv = clamp(g.hv, -125, 110);
+      }
+      g.hook += g.hv * dt;
+      if (g.hook < top) { g.hook = top; g.hv *= -0.12; }
+      if (g.hook > bot) { g.hook = bot; g.hv *= -0.12; }
+      const dist = Math.abs(g.fish - (g.hook + g.hh / 2));
+      const inside = dist <= g.hh / 2 - 1;
+      g.inb = inside;
+      if (inside) { g.prog += dt * (0.15 - d * 0.015); g.inBar = (g.inBar || 0) + dt; g.outT = 0; ev.tick = 1; }
+      else {
+        g.outT = (g.outT || 0) + dt;
+        if (g.outT > 0.38) g.prog -= dt * (0.07 + Math.min(0.14, (dist - g.hh / 2) / 180));
+      }
+      g.prog = clamp(g.prog, 0, 1);
+      if (g.prog >= 1) { g.phase = 'done'; g.caught = true; ev.caught = 1; }
+      else if (g.prog <= 0) { g.phase = 'lost'; ev.lost = 1; }
+    }
+    return ev;
+  };
   GP.reg('fish', {
     title: '凉水河边 · 钓鱼', dur: 52, minutes: 60, hours: 1, tint: 'rgba(10,20,26,.5)',
-    help: ['先看浮漂。它猛地往下一沉，就是鱼咬钩了——马上点一下（或按空格）提竿！慢了鱼就跑了。', '提起来以后，右边的竖条里，鱼会上下乱窜。按住鼠标（或空格、手指）让绿色的“鱼钩区”往上，松开就往下，让它一直罩住鱼。', '罩住了，上面的进度会涨；跑出去就掉。拉满了鱼就是你的，掉光了就脱钩。'],
+    help: ['浮漂猛地往下一沉，马上点一下，或按空格，把竿提起来。不用拖浮漂。', '提竿之后，按住鼠标、空格或屏幕，绿色鱼钩区上升；松开就下降。也可以在右边竖条上上下拖。', '绿色区罩住鱼，进度才涨。短暂离开掉得慢。拉满就到手，掉光才脱钩。'],
     make(env) {
       const kind = pick(FISH);
-      const g = { phase: 'wait', pt: 0, biteAt: rnd(1.8, 3.6), biteWin: 1.15, hook: 250, hv: 0, hh: 118 - kind.d * 26, fish: 200, ft: 160, fcd: 0, prog: .3, held: false, caught: false, lost: false, kind, pf: 0, ripples: [], missedBite: false, inBar: 0, total: 0, perfectRun: 0, auto: null, bob: 0, jump: 0, splashT: 0, endT: 0 };
-      g.pointer = (k) => { if (k === 'down') { g.held = true; if (g.phase === 'bite') strike(); else if (g.phase === 'wait') { g.early = true; early(); } } else if (k === 'up') g.held = false; };
-      g.key = (k, down) => { if (k === 'space' || k === 'up') { g.held = down; if (down) { if (g.phase === 'bite') strike(); else if (g.phase === 'wait') early(); } return true; } return false; };
-      function early() { if (g.phase !== 'wait' || g.earlyDone) return; g.earlyDone = true; g.biteAt += 1.2; env.float(300, 300, '提早了，鱼被吓退一点', '#ff9c8a', 20); S.tap(); g.ripples.push({ t: 0, x: 330, y: 360 }); }
-      function strike() { g.phase = 'fight'; g.pt = 0; g.prog = .3; g.hook = 240; g.hv = 0; S.whoosh(); S.tone(500, 900, .1, .16); env.say('上钩了！按住让绿色区罩住鱼', '#bfe8ff', 2); env.shake(5); env.burst(330, 340, 16, { colors: ['#bfeaff', '#fff'], speed: 170, up: 120, size: 4, life: .7 }); g.struck = true; }
+      const g = GP.fishBoot(kind);
+      g.pointer = (k, x, y) => { if (k === 'down') { g.held = true; g.p0y = y; g.drag = null; if (g.phase === 'bite') strike(); else if (g.phase === 'wait') early(); } else if (k === 'move' && g.held && g.phase === 'fight' && Math.abs(y - (g.p0y || y)) > 16) { g.drag = clamp(y - (GY + 24), 8, GH - 8); } else if (k === 'up') { g.held = false; g.drag = null; } };
+      g.key = (k, down) => { if (k === 'space' || k === 'up') { g.held = down; g.drag = null; if (down) { if (g.phase === 'bite') strike(); else if (g.phase === 'wait') early(); } return true; } return false; };
+      function early() { if (g.phase !== 'wait' || g.earlyDone) return; g.earlyDone = true; g.biteAt += 0.2; env.float(300, 300, '早了一点，再等它沉', '#ffd0a8', 20); S.tap(); g.ripples.push({ t: 0, x: 330, y: 360 }); }
+      function strike() { g.phase = 'fight'; g.pt = 0; g.prog = .36; g.hook = 200; g.hv = 0; g.outT = 0; S.whoosh(); S.tone(500, 900, .1, .16); env.say('上钩了。按住上升，松开下降', '#bfe8ff', 2); env.shake(4); env.burst(330, 340, 16, { colors: ['#bfeaff', '#fff'], speed: 170, up: 120, size: 4, life: .7 }); g.struck = true; }
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['鱼', g.phase === 'wait' ? '等咬钩' : g.phase === 'bite' ? '快提竿！' : g.phase === 'fight' ? Math.round(g.prog * 100) + '%' : g.caught ? '到手' : '跑了', g.phase === 'bite' ? '#ffd24a' : null]];
-      g.hint = () => g.phase === 'wait' ? '盯着浮漂，沉下去就点一下提竿' : g.phase === 'fight' ? '按住往上、松开往下，让绿色区罩住鱼' : null;
-      function finish(caught) { if (g.phase === 'done') return; g.phase = 'done'; g.caught = caught; g.endT = 0; if (caught) { S.win(); S.coin(); env.say(`钓上来一条${g.kind.n}！`, '#ffe9a8', 2.4); env.burst(330, 330, 36, { colors: ['#bfeaff', '#fff', '#ffe27a'], speed: 280, up: 220, size: 5, shape: 'star', life: 1.1 }); g.jump = 1; } else { S.buzz(); env.say(g.missedBite ? '你慢了一步，鱼跑了' : '鱼脱钩了……', '#ffb4a5', 2.2); } }
+      g.hintPersistent = true;
+      g.hint = () => g.phase === 'wait' ? '盯浮漂。下沉时点一下或按空格。不用拖。' : g.phase === 'bite' ? '沉了！点一下或按空格提竿' : g.phase === 'fight' ? '按住上升，松开下降。也可在绿条上拖。罩住鱼就涨。' : null;
+      function finish(caught) { if (g.settled) return; g.settled = 1; g.phase = 'done'; g.caught = caught; g.endT = 0; if (caught) { S.win(); S.coin(); env.say(`钓上来一条${g.kind.n}！`, '#ffe9a8', 2.4); env.burst(330, 330, 36, { colors: ['#bfeaff', '#fff', '#ffe27a'], speed: 280, up: 220, size: 5, shape: 'star', life: 1.1 }); g.jump = 1; } else { S.buzz(); const why = g.missedBite ? '浮漂沉下去时慢了。点一下或按空格就能提竿，下次盯紧那一下。' : '绿色区离开鱼太久。按住让它上升，松开让它下降，小幅点按就能停住。'; env.say(why, '#ffb4a5', 2.6); g.failWhy = why; } }
       g.update = dt => {
         g.pf += dt; g.bob += dt; g.ripples.forEach(r => r.t += dt); g.ripples = g.ripples.filter(r => r.t < 1.5); if (Math.random() < dt * .8) g.ripples.push({ t: 0, x: rnd(120, 560), y: rnd(330, 440), s: 1 });
-        if (g.auto) { if (g.phase === 'bite') strike(); else if (g.phase === 'fight') { g.held = g.auto === 'bad' ? false : (g.hook + g.hh / 2 + g.hv * .3 > g.fish); } }
-        if (g.phase === 'wait') { g.pt += dt; if (g.pt >= g.biteAt) { g.phase = 'bite'; g.pt = 0; S.noise(0, .2, 1800, .16, 'bandpass'); S.tone(300, 120, .2, .14); env.say('沉了！提竿！', '#ffe27a', 1.2); g.splashT = 1; g.ripples.push({ t: 0, x: 330, y: 360, big: 1 }); } }
-        else if (g.phase === 'bite') { g.pt += dt; g.splashT = Math.max(0, g.splashT - dt); if (g.pt > g.biteWin) { g.missedBite = true; env.penalty('提晚了，鱼吐钩跑了', 330, 300, { shake: 5 }); finish(false); } }
-        else if (g.phase === 'fight') {
-          g.pt += dt; g.total += dt;
-          // 鱼：隔一阵换个目标，朝它游
-          g.fcd -= dt; if (g.fcd <= 0) { g.ft = rnd(10, GH - 30); g.fcd = rnd(.5, 1.4) * (1.25 - kind.d * .5); }
-          g.fish += (g.ft - g.fish) * Math.min(1, dt * (2.2 + kind.d * 3.2)); g.fish = clamp(g.fish, 8, GH - 8);
-          // 鱼钩区：按住上升，松开下落
-          g.hv += (g.held ? -620 : 460) * dt; g.hv = clamp(g.hv, -300, 360); g.hook += g.hv * dt; if (g.hook < 0) { g.hook = 0; g.hv = Math.abs(g.hv) * .25; } if (g.hook > GH - g.hh) { g.hook = GH - g.hh; g.hv = -Math.abs(g.hv) * .25; if (Math.abs(g.hv) > 60) S.thump(.1); }
-          const inb = g.fish > g.hook && g.fish < g.hook + g.hh; if (inb) { g.prog += dt * (.2 - kind.d * .03); g.inBar += dt; if (Math.floor(g.pf * 4) % 2 === 0) S.tone(900 + g.prog * 500, 900 + g.prog * 500, .02, .03); } else { g.prog -= dt * (.12 + kind.d * .06); if (!g.outWarn && g.prog < .18) { g.outWarn = 1; env.say('快要脱钩了！追上鱼！', '#ffb89a', 1.2); } if (g.prog > .25) g.outWarn = 0; }
-          g.prog = clamp(g.prog, 0, 1); g.inb = inb;
-          if (g.prog >= 1) finish(true); else if (g.prog <= 0) { env.penalty('鱼脱钩了', 330, 300, { shake: 6 }); finish(false); }
-        }
+        if (g.auto) { if (g.phase === 'bite') strike(); else if (g.phase === 'fight') { g.held = g.auto === 'bad' ? false : (g.hook + g.hh / 2 + g.hv * .15 > g.fish); g.drag = null; } }
+        const ev = GP.fishStep(g, dt);
+        if (ev.bite) { S.noise(0, .2, 1800, .16, 'bandpass'); S.tone(300, 120, .2, .14); env.say('沉了！点一下或按空格', '#ffe27a', 1.4); g.splashT = 1; g.ripples.push({ t: 0, x: 330, y: 360, big: 1 }); }
+        if (ev.mercy) env.say('慢了一拍。鱼又拱了拱，再盯着浮漂。', '#ffd0a8', 1.8);
+        if (ev.caught) finish(true);
+        if (ev.lost) { if (g.missedBite) env.penalty('提晚了，鱼吐钩跑了', 330, 300, { shake: 5 }); else env.penalty('绿区离开太久，鱼脱钩了', 330, 300, { shake: 5 }); finish(false); }
+        if (ev.tick && g.inb && Math.floor(g.pf * 3) % 2 === 0) S.tone(900 + g.prog * 400, 900 + g.prog * 400, .02, .025);
         if (g.phase === 'done') { g.endT += dt; if (g.endT >= 1.5 && !env.ended) env.end(g.final()); if (g.jump > 0) g.jump = Math.max(0, g.jump - dt * .7); }
       };
       g.draw = ctx => {

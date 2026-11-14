@@ -29,11 +29,18 @@
   };
 
   // ---------- 澡堂：热水从上面浇下来，镜面起雾，写字 ----------
+  FX.bathPick = function (service, variant) { return window.SHOWS.bathPick(service, variant); };
   FX.ext.bath = function (k) {
-    const { st, later, say, end, dur, SFX, lines } = k;
-    st.innerHTML = `<div class="mx-bt"><div class="mx-bt-fog"></div><div class="mx-bt-rain">${Array.from({ length: 34 }, (_, i) => `<i style="--x:${(i * 29) % 100}%;--d:${(i % 7) * .13}s;--l:${40 + (i * 17) % 60}px"></i>`).join('')}</div><div class="mx-bt-steam">${Array.from({ length: 6 }, (_, i) => `<b style="--i:${i}"></b>`).join('')}</div></div>`;
-    k.ov.classList.add('mxr', 'mxbath'); SFX.play('water'); say(lines[0] || '热水浇下来。');
-    later(() => { st.querySelector('.mx-bt-fog').classList.add('on'); SFX.play('sighgood'); say(lines[1] || '雾气糊了一整面镜子。'); }, dur * 0.45);
+    const { st, later, say, end, dur, SFX } = k;
+    const spec = FX.bathPick(k.cx && k.cx.service, k.cx && k.cx.variant);
+    const streams = Array.from({ length: 18 }, (_, i) => `<i style="--x:${8 + (i * 5) % 80}%;--d:${(i % 6) * .12}s"></i>`).join('');
+    st.innerHTML = `<div class="bath-scene ${spec.id} v${spec.variant}" data-bath="${spec.key}"><div class="b-room"><div class="b-head"></div><div class="b-streams">${streams}</div><div class="b-dust"></div><div class="b-figure"><i class="b-face"></i><i class="b-towel"></i><i class="b-shoulder"></i></div><div class="b-hand"></div><div class="b-pool"></div><div class="b-ripples"><b></b><b></b><b></b></div><div class="b-steam"></div></div><p class="b-cap"></p></div>`;
+    k.ov.classList.add('mxr', 'mxbath', 'bath-' + spec.id);
+    const root = st.querySelector('.bath-scene');
+    const cap = st.querySelector('.b-cap');
+    const snd = { wash: 'water', soak: 'splash', rub: 'cloth' }[spec.id] || 'water';
+    SFX.play(snd); cap.textContent = spec.lines[0]; say(spec.lines[0]);
+    spec.steps.forEach((step, i) => later(() => { root.dataset.step = step; if (i === spec.steps.length - 1) { SFX.play('sighgood'); cap.textContent = spec.lines[1]; say(spec.lines[1]); } }, dur * (0.18 + i * 0.18)));
     later(() => end(), dur);
   };
 

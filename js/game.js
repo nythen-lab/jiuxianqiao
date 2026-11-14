@@ -23,11 +23,16 @@
   G.phase = () => { const h = G.hour(); return (ST.phases.find(p => h >= p.from && h < p.to) || {}).name || ''; };
   G.untilClock = (target) => { const cur = S.time % 1440; let d = hm(target) - cur; if (d <= 0) d += 1440; return d; };
   G.crowdAt = h => h < 4 ? 1 : h < 5 ? 10 : h < 7 ? 24 : h < 9 ? 10 : h < 16 ? 4 : h < 19.5 ? 18 : h < 22 ? 6 : 2;
-  G.identity = () => C.identities.find(i => i.id === S.idId);
+  G.identity = () => {
+    if (!S) return null;
+    if (S.idId === 'self' && S.custom) return S.custom;
+    return C.identities.find(i => i.id === S.idId) || null;
+  };
 
   // ================= 状态 =================
-  G.newGame = function (idId) {
-    const I = C.identities.find(i => i.id === idId);
+  G.newGame = function (idId, custom) {
+    const I = idId === 'self' ? custom : C.identities.find(i => i.id === idId);
+    if (!I) return null;
     const t0 = DAY0 + hm(ST.arriveTime) - DAY0;
     S = {
       v: 1, idId, time: t0, loc: 'corner', money: I.startMoney, sent: 0, earned: 0, rep: 50,
@@ -46,6 +51,8 @@
     S.seasonStart = G.nextSeasonStart || C.seasons.defaultStart; G.applySeasonPrices();
     if (I.startRoom) { S.room = { until: 1 + I.startRoom.daysLeft, pots: (I.startRoom.pots || []).map(p => ({ id: p.id, wd: (G.plantDef(p.id).grow[p.stage - 1] || 0), lastW: 1, planted: 1 })), decor: [], warned: false, lastSlept: null }; }
     G.checkUnlocks(); S.dayLedger = { day: 1, money0: S.money, earned0: 0, sent0: 0, wage: 0 };
+    S.wageBook = 0; S.incomeMiles = {};
+    if (idId === 'self') { S.custom = custom; S.social = { pref: custom.pref || 'none', people: {} }; }
     G.save();
     return S;
   };
@@ -62,6 +69,27 @@
     if (!S.lvlups) S.lvlups = [];
     if (!S.unlocked) { S.unlocked = {}; S.unlockInit = false; G.checkUnlocks(); }
     if (!S.ach) S.ach = {};
+    if (window.CAST) CAST.migrateSave(S);
+    if (window.CAST && S.wageBook != null) G.grantIncomeMiles();
+  };
+  G.noteWage = function (amt, source) {
+    if (!S || !window.CAST) return [];
+    CAST.note(S, amt, source);
+    return G.grantIncomeMiles();
+  };
+  G.grantIncomeMiles = function () {
+    if (!S || !window.CAST) return [];
+    const got = CAST.claim(S);
+    got.forEach(m => {
+      if (m.money) S.money += m.money;
+      if (m.mental) G.change({ mental: m.mental });
+      if (m.xp) Object.keys(m.xp).forEach(k => G.gainXp(k, m.xp[k]));
+      if (m.phone) S.attrs.phone = Math.min(9, (S.attrs.phone || 0) + m.phone);
+      G.log(m.text + ' ' + m.reward, 'good');
+      G.queue.push({ title: '攒到 ¥' + m.at, text: m.text + ' ' + m.reward });
+      G.addAlbum({ id: 'wage_' + m.id, kind: 'milestone', title: '累计挣到 ¥' + m.at, caption: m.reward });
+    });
+    return got;
   };
   G.setState = s => { S = s; G.migrate(); };
   G.ensureAlbum = () => { if (S && !S.album) S.album = []; return S && S.album; };
@@ -290,7 +318,7 @@
   G.payOwed = function (d) {
     if (!S.owed || !S.owed.length) return;
     const due = S.owed.filter(x => x.day <= d); S.owed = S.owed.filter(x => x.day > d);
-    due.forEach(x => { S.money += x.amt; S.earned += x.amt; const t = `拖了${x.wait}天的${x.job}工钱 ¥${x.amt} 终于结了。`; G.log(t, 'good'); G.queue.push({ title: '工钱到账', text: t, eff: { money: x.amt } }); });
+    due.forEach(x => { S.money += x.amt; S.earned += x.amt; if (G.noteWage) G.noteWage(x.amt, 'job'); const t = `拖了${x.wait}天的${x.job}工钱 ¥${x.amt} 终于结了。`; G.log(t, 'good'); G.queue.push({ title: '工钱到账', text: t, eff: { money: x.amt } }); });
   };
   G.freeMentalOk = function (k) { const F = (ST.freeMental || {})[k]; if (!F) return false; if (F.where && S.loc !== F.where) return false; if (!G.inHours(F.from, F.to)) return false; return !(S.freeDone && S.freeDone[k] === G.dayNum()); };
   G.freeMental = function (k) { const F = ST.freeMental[k]; if (!G.freeMentalOk(k)) return null; S.freeDone = S.freeDone || {}; S.freeDone[k] = G.dayNum(); G.advance(F.minutes); G.change({ mental: F.mental }); G.log(F.text); return F; };
@@ -457,25 +485,34 @@
       const hs = sea && sea.heatstroke; if (hs && hs.jobs.includes(j.id) && S.stats.stamina < hs.below && Math.random() < hs.p) { G.change(hs.effects); G.log(hs.text, 'bad'); G.queue.push({ title: '中暑了', text: hs.text, eff: hs.effects }); S.heatstrokes = (S.heatstrokes || 0) + 1; } }
     if (j.meal && !mealDefs && frac > 0.4) { G.change({ hunger: 30 }); }
     let pay = 0;
-    let bonus = 0, skillPay = 0, quitInfo = null;
-    if (res.completed) {
-      if (j.qualityPay && res.quality != null && window.STA) bonus = STA.perfBonus(res.quality, j.qualityPay);
-      else if (j.qualityPay && res.quality != null) bonus = Math.round((res.quality - 0.7) * j.qualityPay / 5) * 5;
-      const lv = j.skill ? (S.skills[j.skill] || 0) : 0;
-      if (lv >= 3) skillPay = (lv - 2) * 5;  // 熟手补贴
-      pay = wage - (res.fines || 0) + bonus + skillPay;
-    }
-    else if (res.quit || (!res.fired && !res.completed)) { const qp = res.quitPay || G.quitRoll(); quitInfo = { line: qp.line, full: wage, frac: qp.frac }; pay = Math.round(wage * qp.frac); }   // v1.0.2：中途走人，随机结钱：按整班工钱的 30%–60%，或者一分没有
-    pay = Math.max(0, Math.round(pay));
+    let bonus = 0, skillPay = 0, quitInfo = null, payLines = [];
     const E = G.EC();
-    let cut = 0, delayed = 0, unpaid = false, gross = pay;
-    if (pay > 0 && o.cut) { cut = Math.min(pay, o.cut); pay -= cut; S.cutTotal = (S.cutTotal || 0) + cut; G.log(`中介抽走了 ¥${cut}。`); }
-    if (pay > 0 && res.completed) {
-      const r = Math.random();
-      if (r < (E.wageUnpaidP || 0)) { unpaid = true; G.log(`${j.name}的工钱 ¥${pay} 没拿到：中介说厂里没打款，电话再打就不接了。`, 'bad'); S.stats.mental = Math.max(Math.min(S.stats.mental, TH().mentalForce + 1), S.stats.mental - 8); S.unpaidTotal = (S.unpaidTotal || 0) + pay; pay = 0; }
-      else if (r < (E.wageUnpaidP || 0) + (E.wageDelayP || 0)) { const wait = ri(1, 2); delayed = pay; S.owed = S.owed || []; S.owed.push({ amt: pay, day: G.dayNum() + wait, wait, job: j.name }); G.log(`${j.name}的工钱 ¥${pay} 说是“过${wait}天一起结”。`, 'warn'); G.change({ mental: -3 }); pay = 0; }
+    const lv = j.skill ? (S.skills[j.skill] || 0) : 0;
+    let quitFrac = null, quitLineIn = null;
+    if (!res.completed && !res.noPay && j.quitPay !== 'none' && j.quitPay !== 'hourly') {
+      const qp = res.quitPay || G.quitRoll();
+      quitFrac = qp.frac; quitLineIn = qp.line;
     }
+    const spec = {
+      wage, completed: !!res.completed && !res.noPay, noPay: !!res.noPay,
+      quality: res.quality, qualityPay: j.qualityPay, skillLv: lv, fines: res.fines || 0,
+      quitPay: j.quitPay, hourly: j.hourly, hoursDone: res.hoursDone || 0,
+      quitFrac, quitLine: quitLineIn, perf: window.STA ? (q, pool) => STA.perfBonus(q, pool) : null
+    };
+    const draft = window.PAY ? PAY.settleJob(spec) : { pay: 0, bonus: 0, skillPay: 0, lines: [], quitLine: '' };
+    let cut = 0, delayed = 0, unpaid = false, gross = draft.pay;
+    if (draft.pay > 0 && o.cut) { cut = Math.min(draft.pay, o.cut); S.cutTotal = (S.cutTotal || 0) + cut; G.log(`中介抽走了 ¥${cut}。`); }
+    const afterCut = Math.max(0, draft.pay - cut);
+    if (afterCut > 0 && res.completed && !res.noPay) {
+      const r = Math.random();
+      if (r < (E.wageUnpaidP || 0)) { unpaid = true; G.log(`${j.name}的工钱 ¥${afterCut} 没拿到：中介说厂里没打款，电话再打就不接了。`, 'bad'); S.stats.mental = Math.max(Math.min(S.stats.mental, TH().mentalForce + 1), S.stats.mental - 8); S.unpaidTotal = (S.unpaidTotal || 0) + afterCut; }
+      else if (r < (E.wageUnpaidP || 0) + (E.wageDelayP || 0)) { const wait = ri(1, 2); delayed = afterCut; S.owed = S.owed || []; S.owed.push({ amt: afterCut, day: G.dayNum() + wait, wait, job: j.name }); G.log(`${j.name}的工钱 ¥${afterCut} 说是“过${wait}天一起结”。`, 'warn'); G.change({ mental: -3 }); }
+    }
+    const finalPay = window.PAY ? PAY.settleJob(Object.assign({}, spec, { cut, unpaid, delayed: delayed > 0 })) : draft;
+    pay = finalPay.pay; bonus = finalPay.bonus; skillPay = finalPay.skillPay; payLines = finalPay.lines;
+    if (finalPay.quitLine) quitInfo = { line: finalPay.quitLine, full: wage, frac: quitFrac == null ? 0 : quitFrac };
     S.money += pay; S.earned += pay;
+    if (pay > 0) G.noteWage(pay, 'job');
     let firstJob = false;
     if (res.completed) {
       S.jobsDone[j.id] = (S.jobsDone[j.id] || 0) + 1;
@@ -501,7 +538,7 @@
       S.dayLedger = S.dayLedger || {}; S.dayLedger.wage = (S.dayLedger.wage || 0) + pay + delayed;
     }
     G.fireEvents('afterJob', { job: j.id, completed: !!res.completed });
-    return { pay, quitLine: quitInfo && quitInfo.line, quitFull: quitInfo && quitInfo.full, quitFrac: quitInfo && quitInfo.frac, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten, hungerEnd: Math.round(S.stats.hunger) };
+    return { pay, lines: payLines, quitLine: quitInfo && quitInfo.line, quitFull: quitInfo && quitInfo.full, quitFrac: quitInfo && quitInfo.frac, frac, j, firstJob, bonus, skillPay, xp, quality: res.quality, cut, delayed, unpaid, gross, meals: eaten, hungerEnd: Math.round(S.stats.hunger) };
   };
 
   // ================= 吃穿住 =================
@@ -583,7 +620,7 @@
   G.scrap = function (mult) {
     const B = C.broke.scrap; let m = ri(B.money[0], B.money[1]); if (S.loc === 'bar' && G.hourF() >= 19) m += ri(0, B.barBonus); if (mult != null) m = Math.max(mult === 0 ? 0 : 1, Math.round(m * mult));
     G.advance(B.minutes); G.change({ stamina: B.stamina, mental: B.mental }); S.stats.clean = clamp(S.stats.clean + B.clean, 0, 100);
-    S.money += m; S.scrapTotal = (S.scrapTotal || 0) + m;
+    S.money += m; S.earned += m; S.scrapTotal = (S.scrapTotal || 0) + m; if (m > 0) G.noteWage(m, 'scrap');
     G.log(`捡了两个钟头瓶子，卖了 ${m} 元。`, 'warn'); return { money: m, line: pick(B.lines) };
   };
   G.oddjobP = () => { const B = C.broke.oddjob; return clamp(B.baseP + (G.decency() - 40) / 200 - (G.hasRecord() ? B.recordP : 0), 0.1, 0.9); };
@@ -705,6 +742,7 @@
     const before = S.sent, goal = (G.identity().goal.amount || 0);
     S.money -= amt + fee; S.sent += amt;
     G.advance(S.attrs.phone < 4 ? (ST.bank.minutesSlow || 30) : (ST.bank.minutesPhone || 10));
+    if (window.CAST) { const practiced = CAST.practicePhone(S.attrs, S.flags, G.dayNum()); if (practiced.practiced) G.log(`转账按键熟了一点。手机熟练 ${practiced.phone}。`, 'good'); }
     if (G.identity().goal.type !== 'send') G.change({ mental: 3 });
     G.log(`给家里转了 ${amt} 元（手续费 ${fee} 元）。累计已寄回 ${S.sent} 元。`, 'good');
     const hitGoal = goal && before < goal && S.sent >= goal;
@@ -792,6 +830,11 @@
     if (g.type === 'settle') { const rd = S.roomDays || 0, pl = G.grownPlants(), tr = Math.max(0, ...Object.values(S.npc).map(r => r.aff)); const done = rd >= g.roomDays && S.money >= g.amount && pl >= g.plants && tr >= g.trust;
       return { done, text: `单间 ${Math.min(rd, g.roomDays)}/${g.roomDays} 天 · 存款 ${S.money}/${g.amount} · 花草 ${Math.min(pl, g.plants)}/${g.plants} 盆 · 最信得过的人 ${Math.round(tr)}/${g.trust}`, pct: (Math.min(1, rd / g.roomDays) + Math.min(1, S.money / g.amount) + Math.min(1, pl / g.plants) + Math.min(1, tr / g.trust)) / 4 }; }
     if (g.type === 'send') return { done: S.sent >= g.amount, text: `${g.debt ? '已还债' : '已寄回'} ${S.sent} / ${g.amount} 元`, pct: Math.min(1, S.sent / g.amount) };
+    if (g.type === 'live') {
+      const book = S.wageBook || 0;
+      const next = (window.CAST ? CAST.MILESTONES : []).find(m => !(S.incomeMiles || {})[m.id]);
+      return { done: book >= 3000, text: `累计挣到 ¥${book}` + (next ? ` · 下一档 ¥${next.at}` : ' · 还在往前'), pct: Math.min(1, book / 3000) };
+    }
     const jt = Object.keys(S.jobsDone).length;
     const day = G.dayNum();
     const minD = g.minDays || 0;
