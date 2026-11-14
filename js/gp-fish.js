@@ -73,6 +73,7 @@
       function strike() { g.phase = 'fight'; g.pt = 0; g.prog = .36; g.hook = 200; g.hv = 0; g.outT = 0; S.whoosh(); S.tone(500, 900, .1, .16); env.say('上钩了。按住上升，松开下降', '#bfe8ff', 2); env.shake(4); env.burst(330, 340, 16, { colors: ['#bfeaff', '#fff'], speed: 170, up: 120, size: 4, life: .7 }); g.struck = true; }
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['鱼', g.phase === 'wait' ? '等咬钩' : g.phase === 'bite' ? '快提竿！' : g.phase === 'fight' ? Math.round(g.prog * 100) + '%' : g.caught ? '到手' : '跑了', g.phase === 'bite' ? '#ffd24a' : null]];
+      g.playBox = { x: GX - 36, y: 62, w: 238, h: 440 };
       g.hintPersistent = true;
       g.hint = () => g.phase === 'wait' ? '盯浮漂。下沉时点一下或按空格。不用拖。' : g.phase === 'bite' ? '沉了！点一下或按空格提竿' : g.phase === 'fight' ? '按住上升，松开下降。也可在绿条上拖。罩住鱼就涨。' : null;
       function finish(caught) { if (g.settled) return; g.settled = 1; g.phase = 'done'; g.caught = caught; g.endT = 0; if (caught) { S.win(); S.coin(); env.say(`钓上来一条${g.kind.n}！`, '#ffe9a8', 2.4); env.burst(330, 330, 36, { colors: ['#bfeaff', '#fff', '#ffe27a'], speed: 280, up: 220, size: 5, shape: 'star', life: 1.1 }); g.jump = 1; } else { S.buzz(); const why = g.missedBite ? '浮漂沉下去时慢了。点一下或按空格就能提竿，下次盯紧那一下。' : '绿色区离开鱼太久。按住让它上升，松开让它下降，小幅点按就能停住。'; env.say(why, '#ffb4a5', 2.6); g.failWhy = why; } }

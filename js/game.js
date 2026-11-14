@@ -71,6 +71,7 @@
     if (!S.ach) S.ach = {};
     if (window.CAST) CAST.migrateSave(S);
     if (window.CAST && S.wageBook != null) G.grantIncomeMiles();
+    if (window.FOOT) FOOT.migrate(S);
   };
   G.noteWage = function (amt, source) {
     if (!S || !window.CAST) return [];
@@ -530,6 +531,7 @@
       G.addAlbum({ id: 'job_' + j.id, kind: 'job', title: '第一次干「' + j.name + '」', caption: '整班拿到 ¥' + pay + '。手还在抖。', amount: pay });
       G.addStamp('job_' + j.id, j.name.slice(0, 4), '第一次');
     }
+    if (window.FOOT) FOOT.paidJob(S, j, pay);
     if (res.completed) {
       if (res.quality != null && res.quality >= 0.9) G.grantAch('earn_self');
       if (j.id === 'antigen' && S.stats.mental <= 40) G.grantAch('shadow_line');
@@ -551,6 +553,7 @@
     G.change(delta);
     if (!opts.noTime) G.advance(Math.round((opts.minutes || 20) * G.slowMult()));
     G.log(`吃了${m.name}（-${m.price}元）`);
+    if (!opts.forced && m.price > 0 && window.FOOT) FOOT.treat(S, { title: '自己请了一顿', caption: '吃了' + m.name + '，花了 ¥' + m.price + '。', amount: m.price });
     return { ok: true, meal: m, delta, before, money: m.price };
   };
   G.buyLeftover = function () {
@@ -707,7 +710,7 @@
     }
     return { paid, robbed, cold, chased, gain: { sta: Math.round(S.stats.stamina - before.sta), men: Math.round(S.stats.mental - before.men) }, postcard: !!S.dayPostcardPending };
   };
-  G.beer = function () { const B = C.bar.beer; if (S.money < B.price) return '钱不够。'; S.money -= B.price; S.beersTonight++; G.change({ mental: S.beersTonight > 3 ? 1 : B.mental, stamina: B.stamina * (S.beersTonight > 3 ? 4 : 1), hunger: B.hunger }); G.advance(30); G.log(S.beersTonight > 3 ? '喝多了，头重脚轻。' : '一瓶冰啤酒下肚，心里松快了点。'); return null; };
+  G.beer = function () { const B = C.bar.beer; if (S.money < B.price) return '钱不够。'; S.money -= B.price; S.beersTonight++; G.change({ mental: S.beersTonight > 3 ? 1 : B.mental, stamina: B.stamina * (S.beersTonight > 3 ? 4 : 1), hunger: B.hunger }); G.advance(30); G.log(S.beersTonight > 3 ? '喝多了，头重脚轻。' : '一瓶冰啤酒下肚，心里松快了点。'); if (window.FOOT) FOOT.treat(S, { title: '自己坐下来喝了一瓶', caption: '烧烤摊上的啤酒，花了 ¥' + B.price + '。', amount: B.price }); return null; };
   G.addAlbum = function (e) {
     if (!S) return false;
     if (!S.album) S.album = [];
@@ -1013,7 +1016,7 @@
   };
   G.forceEat = function (m) {
     S.loc = 'food';
-    const r = G.buyFood(m, { minutes: 40 });
+    const r = G.buyFood(m, { minutes: 40, forced: true });
     S.forced.hunger++;
     if (r && r.ok) G.log(`饿得手直哆嗦，被迫停下来吃了${m.name}（-${m.price}元）。`, 'warn');
     return m;

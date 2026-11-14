@@ -388,6 +388,8 @@
       G.advance(out.minutes || 20); G.change({ mental: out.mental || 2, hunger: pick === 'meal' ? 24 : 0 });
       if (out.teach && out.teach.skill) G.gainXp(out.teach.skill, out.teach.xp);
       if (out.teach && out.teach.phone) S.attrs.phone = Math.min(9, (S.attrs.phone || 0) + out.teach.phone);
+      if (window.FOOT) FOOT.noteFriend(S, npc);
+      if (pick === 'meal' && window.FOOT) FOOT.treat(S, { title: '请人吃了顿饭', caption: '和' + npc.name + '坐下来，花了 ¥30。', amount: 30 });
       await UI.modal({ title: '聊了聊', html: `<p>${pick === 'meal' ? '请吃了顿饭，花了 ¥30。' : '说了会儿话。'}朋友现在 ${out.friend}。</p>${out.teach ? `<p class="good">${out.teach.text}</p>` : ''}` });
       return;
     }
@@ -395,6 +397,7 @@
       const out = CAST.court(S, id, G.age());
       if (!out.ok) return UI.toast(out.error === 'pref' ? '这不在你想认识的范围里。' : '现在不合适。', 'bad');
       G.advance(20); G.change({ mental: 3 });
+      if (window.FOOT) FOOT.noteFriend(S, npc);
       await UI.modal({ title: '多了解一点', html: `<p>你们把话往前说了一点。了解 ${out.affection}。这还不是在一起。</p>` });
       return;
     }
@@ -412,7 +415,7 @@
     if (k === 'folk') return LIFE.folkMenu(v);
     if (k === 'bath') return UI.act(async () => {
       const it = C.bath.items.find(x => x.id === v); if (!it) return; if (S.money < it.price) return UI.toast('钱不够。', 'bad');
-      S.money -= it.price; const win = G.season() && G.season().id === 'winter' && (C.bath.winterBonus.ids || []).includes(it.id); const dec0 = G.decency(); const st0 = { sta: S.stats.stamina, men: S.stats.mental };
+      S.money -= it.price; if (window.FOOT) FOOT.treat(S, { title: '给自己洗了个澡', caption: it.name + '，花了 ¥' + it.price + '。', amount: it.price }); const win = G.season() && G.season().id === 'winter' && (C.bath.winterBonus.ids || []).includes(it.id); const dec0 = G.decency(); const st0 = { sta: S.stats.stamina, men: S.stats.mental };
       const had = { sore: !!G.debuff('sore'), chill: !!G.debuff('chill') };
       const e = { clean: it.clean, stamina: it.stamina + (win ? C.bath.winterBonus.stamina : 0), mental: it.mental + (win ? C.bath.winterBonus.mental : 0) };
       G.advance(it.minutes); G.change(e);

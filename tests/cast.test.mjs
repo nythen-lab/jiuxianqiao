@@ -56,5 +56,17 @@ ok('existing marriage blocks a new commitment', C.commit(save, 'linwan').error =
 ok('minor player cannot court', C.court({ social: { pref: 'any', people: {} } }, 'linwan', 17).error === 'minor');
 const attrs = { phone: 3 }, flags = {};
 ok('phone improves once a day', C.practicePhone(attrs, flags, 2).practiced && attrs.phone === 4 && !C.practicePhone(attrs, flags, 2).practiced);
+['x', 'm', 'f'].forEach(g => {
+  const pack = C.LOOKS[g];
+  ok(g + ' can choose short, long, and tied hair', pack.map(x => x.label + ':' + x.look.hair).join() === '短发:short,长发:long,束发:tied');
+});
+vm.runInContext(fs.readFileSync(new URL('../js/art.js', import.meta.url), 'utf8'), sandbox);
+const A = sandbox.window.ART;
+const tied = A.portrait({ hair: 'tied', hairColor: '#3a2a22', skin: '#e0b48f', shirt: '#6b5a45' });
+const long = A.portrait({ hair: 'long', hairColor: '#2a1f1c', skin: '#f1c9a5', shirt: '#4f7fa8' });
+const short = A.portrait({ hair: 'short', hairColor: '#1e1a18', skin: '#d8a983', shirt: '#3d4a3e' });
+ok('tied hair is a bun, not the long curtains', tied.includes('cy="8"') && !tied.includes('M24 92') && long.includes('M24 92') && !long.includes('cy="8"'));
+ok('short hair stays a cap', short.includes('M27 46') && !short.includes('M24 92') && !short.includes('cy="8"'));
+ok('body sketch keeps the three silhouettes apart', !A.outfitBody({ hair: 'tied', hairColor: '#3a2a22' }).includes('L108 112') && A.outfitBody({ hair: 'long', hairColor: '#222' }).includes('L108 112'));
 if (bad) { console.error(bad + ' failed'); process.exit(1); }
 console.log('cast checks passed');

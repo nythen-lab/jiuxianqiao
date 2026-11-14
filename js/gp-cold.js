@@ -38,6 +38,7 @@
       g.key = (k, down) => { if (!down) return false; if (k === ' ' || k === 'Enter' || k === 'ArrowDown') { g.tap(); return true; } if (k === 'h' || k === 'H') { warm(); return true; } return false; };
       g.setAuto = m => { g.auto = m || null; };
       g.hud = () => [['整托', g.pallets], ['层', `${g.tower.length}/${PER}`], ['手', g.cold > 70 ? '冻僵' : g.cold > 40 ? '发凉' : '暖', g.cold > 70 ? '#8fb8ff' : null]];
+      g.playBox = { x: 20, y: 444, w: 600, h: 72 };
       g.hint = () => g.boxes < 2 ? '看准时机点一下，箱子对齐落下' : (g.cold > 60 ? '手快冻僵了：点右下“哈气暖手”' : null);
       g.update = dt => {
         g.pf += dt; g.cam += (g.tcam - g.cam) * Math.min(1, dt * 5); g.cold = Math.min(100, g.cold + (g.warm > 0 ? 0 : 3.4) * dt); if (g.warm > 0) g.warm -= dt;

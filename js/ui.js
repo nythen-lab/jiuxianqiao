@@ -113,8 +113,7 @@
       const built = CAST.build({ age, gender, pref, bg, look, name: $('#cast-name').value });
       if (built.error) { $('#cast-err').textContent = built.error; return; }
       G.nextSeasonStart = UI._season || C.seasons.defaultStart;
-      G.newGame('self', built.identity);
-      UI.enter(true);
+      UI.welcome(built.identity);
     };
     paint();
   };
@@ -167,6 +166,59 @@
   // 兼容旧调用名
   UI.bio = UI.comic;
 
+  // 自己来的人：沿用开场漫画的格子、淡入和跳过，换成本人的样子和镇子的画。
+  UI.welcome = function (identity) {
+    const panels = [
+      { title: '天亮前', img: A.IMG.corner.dawn, text: `${identity.name}，欢迎来到酒仙桥。天还没亮，路口已经有人。你带着自己的日子来的。` },
+      { title: '干活', img: A.IMG.corner.day, text: '早上和傍晚，路口有人招工。干完一班，说好的工钱进自己的口袋。干得好，可以再加一点。' },
+      { title: '歇一歇', img: A.IMG.place('food'), text: '饿了就吃饭，累了去澡堂。河边能钓鱼，网吧能坐一会儿。这些是你的时间，不是任务。' },
+      { title: '镇上的人', img: A.IMG.place('riverside'), text: '想聊天就聊，想认识谁由你开口。不想谈，也完全可以。没有人替你把日子排好。' }
+    ];
+    let k = 0;
+    if (window.Music) Music.start();
+    UI.show('bio');
+    const draw = () => {
+      if (k >= panels.length) return drawClose();
+      const P = panels[k];
+      const dots = panels.map((_, i) => `<i class="${i === k ? 'on' : ''}"></i>`).join('');
+      $('#bio').innerHTML = `<div class="comic-slide welcome-slide">
+        <div class="comic-frame"><span class="panel-tag">第 ${k + 1} 格 · ${P.title}</span>
+          <div class="comic-img welcome-img" style="background-image:url(${P.img})"></div>
+          <div class="welcome-who">${A.portrait(identity.look, { bg: '#f2e6cf' })}<b>${identity.name}</b><small>${identity.age}岁</small></div>
+        </div>
+        <p class="comic-cap">${P.text}</p>
+        <div class="comic-nav"><div class="comic-dots">${dots}</div>
+          <span>${k + 1} / ${panels.length}</span>
+          <button class="btn" id="comic-skip">跳过</button>
+          <button class="btn primary" id="comic-next">${k === panels.length - 1 ? '看看足迹' : '下一格'}</button>
+        </div></div>`;
+      $('#comic-next').onclick = () => { k++; draw(); };
+      $('#comic-skip').onclick = () => { k = panels.length; draw(); };
+    };
+    const drawClose = () => {
+      const dots = FOOT.board({ flags: {}, incomeMiles: {}, album: [{ id: 'arrive' }], wageBook: 0 }).nodes.filter(n => !n.optional).slice(0, 6);
+      $('#bio').innerHTML = `<div class="comic-slide welcome-slide">
+        <div class="welcome-close">
+          <div class="welcome-who big">${A.portrait(identity.look, { bg: '#f2e6cf' })}</div>
+          <div>
+            <span class="kicker">我的足迹 · 从今天记起</span>
+            <h2>${identity.name} · ${identity.age}岁</h2>
+            <p>第一份工钱、第一顿自己请的，要真的发生才记下来，并收进相册。一千、两千、三千是给你自己的记号，不是期限。花掉不算倒退。</p>
+            <ol class="welcome-path">${dots.map(n => `<li><b>${n.title}</b><small>${n.text}</small></li>`).join('')}</ol>
+            <button class="btn primary hi-btn" id="comic-go">走进镇子</button>
+          </div>
+        </div></div>`;
+      $('#comic-go').onclick = () => {
+        G.newGame('self', identity);
+        const S = G.S();
+        S.flags.introSeen = 1;
+        G.save();
+        UI.enter(false);
+      };
+    };
+    draw();
+  };
+
   // ---------- 进入游戏 ----------
   UI.enter = async function (fresh) {
     if (window.Music) Music.start();
@@ -200,19 +252,24 @@
     const lowOf = { sta: S.stats.stamina <= T.staminaLow, men: S.stats.mental <= T.mentalLow, hun: S.stats.hunger <= T.hungerLow, dec: S.stats.clean <= T.cleanLow };
     const bar = (k, label, v, max, cls) => `<div class="stat ${cls}${lowOf[cls] ? ' low' : ''}" title="${label}"><span>${label}</span><div class="sbar"><i style="width:${Math.round(v / max * 100)}%"></i></div><b>${Math.round(v)}</b></div>`;
     const pr = G.goalProgress();
+    const live = I.goal && I.goal.type === 'live' && window.FOOT;
+    const goalHtml = live
+      ? `<button type="button" class="goalmini footmini" id="hud-foot" title="我的足迹"><span>我的足迹</span><span class="foot-pips">${FOOT.pips(S)}</span></button>`
+      : `<div class="goalmini" title="目标进度"><span>🎯 ${pr.text}</span><div class="sbar"><i style="width:${Math.round(Math.min(1, pr.pct) * 100)}%"></i></div></div>`;
     $('#hud').innerHTML = `<button class="me" id="hud-me" title="人物卡（C）">${A.portrait(A.playerLook(), { bg: '#f2e6cf' })}</button>
       <div class="clock"><div class="dayrow"><div class="day">第 <b>${G.dayNum()}</b> 天</div>${G.season ? `<span class="season-chip s-${G.season().id}" id="hud-season" title="${G.season().tip}（这一季还剩 ${G.seasonDayLeft()} 天）· 点开看四季">${window.LIFE ? LIFE.seasonMini() : G.season().icon}${G.season().name}</span>` : ''}</div>${window.FX ? FX.timeHTML() : `<div class="time"><span class="tclock">${G.clock()}</span><small>${G.phase()}</small></div>`}</div>
       <div class="stats">${bar('stamina', '体力', S.stats.stamina, S.maxSta, 'sta')}${bar('mental', '精神', S.stats.mental, 100, 'men')}${bar('hunger', '饱腹', S.stats.hunger, 100, 'hun')}${bar('dec', '体面', G.decency(), 100, 'dec')}</div>
       <div class="money${S.money < T.moneyLow ? ' low' : ''}">¥ <b id="hud-money">${S.money}</b>${I.goal.type === 'send' ? `<small>${I.goal.debt ? '已还' : '已寄回'} ¥${S.sent}</small>` : ''}${G.owedTotal && G.owedTotal() ? `<small class="owed">被拖欠 ¥${G.owedTotal()}</small>` : ''}</div>
       <button class="btn sm send-btn${I.goal.type === 'send' ? ' gold' : ''}" id="hud-send" title="去银行自助厅转账">🏦 ${I.goal.debt ? '还债' : '寄钱'}</button>
       <div class="rec ${G.hasRecord() ? 'bad' : 'ok'}" id="hud-rec" title="案底状态">${G.hasRecord() ? `⚠ 有案底 ×${S.record.count}` : '✓ 无案底'}</div>
-      <div class="goalmini" title="目标进度"><span>🎯 ${pr.text}</span><div class="sbar"><i style="width:${Math.round(Math.min(1, pr.pct) * 100)}%"></i></div></div>
+      ${goalHtml}
       <button class="btn sm mute" id="hud-mute" title="静音">${(window.Music && Music.muted) ? '🔇' : '🔊'}</button>
       <button class="btn sm album-btn" id="hud-album" title="相册">相册${((S.album ? S.album.length : 0) - (S.albumSeen || 0)) > 0 ? `<i>${S.album.length - (S.albumSeen || 0)}</i>` : ''}</button>
       <div class="hbtns"><button class="btn sm" id="hud-save">存档</button><button class="btn sm" id="hud-load">读档</button><button class="btn sm" id="hud-menu">菜单</button></div>`;
     $('#hud-me').onclick = UI.sheet; $('#hud-rec').onclick = UI.sheet;
     $('#hud-mute').onclick = () => { if (window.Music) { Music.start(); Music.toggleMute(); UI.render(); } };
     $('#hud-album').onclick = () => UI.album();
+    if ($('#hud-foot')) $('#hud-foot').onclick = () => UI.footprints();
     $('#hud-send').onclick = () => UI.goSend();
     // 状态警告条（红色闪烁 = 马上要出事）
     let wb = document.getElementById('warns');
@@ -815,7 +872,7 @@
     if (k === 'borrow') return UI.borrowFlow();
     if (k === 'scrap') return act(async () => { let gres = null; if (window.GP) { try { gres = await GP.play('scrap', { bg: A.placeImg(S.loc, G.hourF()) }); } catch (e) { gres = null; } } const real = gres && !gres.auto && !gres.fallback; const mult = real ? Math.round(GP.perfMult(gres.quality) / 1.045 * (gres.quit && gres.quitPay ? gres.quitPay.frac : 1) * 100) / 100 : null; const r = G.scrap(mult); if (!real) await FX.micro('scrap', { money: r.money }); r.gres = real ? gres : null; r.mult = mult; await UI.modal({ title: '捡瓶子', bg: A.placeImg(S.loc, G.hourF()), html: `<p>${r.line}</p>${r.gres ? `<p class="gig-calc">手艺 ${GP.grade(r.gres.quality).w} · 瓶子倍率 ×${r.mult}</p><ul class="gig-lines">${(r.gres.lines || []).map(x => `<li>${x}</li>`).join('')}</ul>` : ''}<p class="eff"><span class="up">钱 +${r.money}</span> <span class="down">体力 ${C.broke.scrap.stamina}</span> <span class="down">干净 ${C.broke.scrap.clean}</span></p>`, buttons: [{ text: '把蛇皮袋叠好' }] }); });
     if (k === 'oddjob') return act(async () => { const r = G.oddjob(); let gres = null; if (r.ok && window.GP) { try { gres = await GP.play('oddjob', { bg: A.IMG.place('food') }); } catch (e) { gres = null; } } const real = gres && !gres.auto && !gres.fallback; if (real) { const m = gres.quit && gres.quitPay ? gres.quitPay.frac : Math.round((0.75 + 0.4 * gres.quality) * 100) / 100; const dh = Math.round(C.broke.oddjob.hunger * (m - 1)); if (dh) G.change({ hunger: dh }); r.gres = gres; r.dh = dh; } if (r.ok && !real) await FX.micro('oddjob'); await UI.modal({ title: r.ok ? '换了一顿饭' : '老板没要', bg: A.IMG.place('food'), html: r.ok ? `<p>${r.line}</p>${r.gres ? `<p class="gig-calc">手艺 ${GP.grade(r.gres.quality).w}</p><ul class="gig-lines">${(r.gres.lines || []).map(x => `<li>${x}</li>`).join('')}</ul>` : ''}<p class="eff"><span class="up">饱腹 +${C.broke.oddjob.hunger + (r.dh || 0)}</span> <span class="down">体力 ${C.broke.oddjob.stamina}</span></p>` : `<p>${r.line}</p><p class="muted">今天就别再问了，明天再来试试。</p>`, buttons: [{ text: r.ok ? '抹抹嘴' : '走吧' }] }); });
-    if (k === 'karaoke') return act(async () => { const R = C.riverside.karaoke; if (S.money < R.price) return UI.toast('钱不够。', 'bad'); S.money -= R.price; G.advance(R.minutes); G.change({ mental: R.mental }); G.log(R.text); await FX.micro('karaoke'); UI.toast(R.text); });
+    if (k === 'karaoke') return act(async () => { const R = C.riverside.karaoke; if (S.money < R.price) return UI.toast('钱不够。', 'bad'); S.money -= R.price; G.advance(R.minutes); G.change({ mental: R.mental }); G.log(R.text); if (window.FOOT) FOOT.treat(S, { title: '给自己唱了一会儿', caption: '河边的歌，花了 ¥' + R.price + '。', amount: R.price }); await FX.micro('karaoke'); UI.toast(R.text); });
     if (k === 'fish') return act(async () => { const R = C.riverside.fish; await FX.micro('fish'); G.advance(R.minutes); G.change({ mental: R.mental, stamina: R.stamina }); G.log(R.text); const n = Math.random() < 0.5 ? G.pickNpc('riverside') : null; if (n) await UI.talk(n, '凉水河边'); else UI.toast(R.text); });
     if (k === 'wait30') return act(async () => { const f = S.time; G.advance(30); await FX.micro('wait', { from: f, to: S.time }); });
     if (k === 'wait60') return act(async () => { const f = S.time; G.advance(60); await FX.micro('wait', { from: f, to: S.time }); });
@@ -840,12 +897,12 @@
     });
     if (k === 'skewer') return act(async () => {
       const B = C.bar.skewer; if (S.money < B.price) return UI.toast('钱不够。', 'bad');
-      S.money -= B.price; G.change({ hunger: B.hunger, mental: B.mental, stamina: B.stamina || 0 }); G.advance(60); G.log('和工友拼桌撸串。');
+      S.money -= B.price; G.change({ hunger: B.hunger, mental: B.mental, stamina: B.stamina || 0 }); G.advance(60); G.log('和工友拼桌撸串。'); if (window.FOOT) FOOT.treat(S, { title: '自己请了一串', caption: '烧烤摊上，花了 ¥' + B.price + '。', amount: B.price });
       await UI.eatMoment(B, { delta: { hunger: B.hunger, mental: B.mental, stamina: B.stamina || 0 } });
       const n = G.pickNpc('bar'); if (n) await UI.talk(n, '烧烤摊上');
     });
     if (k === 'netsurf') return window.NET.open();
-    if (k === 'netgame') return act(async () => { const r = G.netGame(); if (r.err) return UI.toast(r.err, 'bad'); await FX.micro('netgame'); await UI.modal({ title: '通宵网吧', bg: A.IMG.place('netcafe'), html: `<p>${r.g.text}</p>${effText({ mental: r.g.mental, stamina: r.g.stamina, hunger: r.g.hunger, money: -r.g.price })}` }); });
+    if (k === 'netgame') return act(async () => { const r = G.netGame(); if (r.err) return UI.toast(r.err, 'bad'); if (window.FOOT) FOOT.treat(S, { title: '在网吧坐了下来', caption: r.g.name + '，花了 ¥' + r.g.price + '。', amount: r.g.price }); await FX.micro('netgame'); await UI.modal({ title: '通宵网吧', bg: A.IMG.place('netcafe'), html: `<p>${r.g.text}</p>${effText({ mental: r.g.mental, stamina: r.g.stamina, hunger: r.g.hunger, money: -r.g.price })}` }); });
     if (k === 'scratch') return act(async () => { UI._beatVerb = '刮到'; await UI.scratchFlow(); });
     if (k === 'clinic') return act(async () => { const r = G.clinic(v); if (r.err) return UI.toast(r.err, 'bad'); await FX.micro('clinic'); await UI.modal({ title: '村卫生室', bg: A.IMG.place('clinic'), html: `<p>${r.sv.text}</p>${effText({ stamina: r.sv.stamina, mental: r.sv.mental, hunger: r.sv.hunger, money: -r.sv.price })}` }); });
     if (k === 'agency') return act(async () => { const sv = C.agencyServices.find(x => x.id === v); if ((S.certs || {})[v]) return UI.toast((S.certs[v].done ? '已经办下来了。' : `还在办，还有 ${Math.max(0, S.certs[v].ready - G.dayNum())} 天（第 ${S.certs[v].ready} 天来拿）。`)); if (sv.exam && window.CERT) return CERT.start(v); const go = await UI.modal({ title: sv.name, bg: A.IMG.place('agency'), html: `<p>${sv.text}</p><p>¥${sv.price} · ${sv.days} 天后拿。</p>`, buttons: [{ text: `交钱（¥${sv.price}）`, disabled: S.money < sv.price }, { text: '算了', cls: 'ghost' }] }); if (go === 1) return; const r = G.agencyBuy(v); if (r.err) UI.toast(r.err, 'bad'); else { await FX.micro('agency', { fee: sv.price }); UI.toast('交了钱，等着拿证'); } });
@@ -1206,7 +1263,7 @@
       <div class="sh-l"><div class="pt big">${A.portrait(A.playerLook())}</div><div class="sheet-outfit">${A.outfitBody(A.playerLook(), G.outfit(), { w: 140, h: 210 })}</div><h3>${I.name} · ${I.age}岁</h3><p class="tag">${I.tag}</p>${I.profile ? `<button class="btn sm" id="my-bio">📖 人物小传</button>` : ''}
         <div class="recbox ${G.hasRecord() ? 'bad' : 'ok'}" id="sheet-record"><b>${C.theft.recordName}：${G.hasRecord() ? `有（${S.record.count} 次）` : '无，清清白白'}</b>
         ${G.hasRecord() ? `<ul>${S.record.log.map(r => `<li>第${r.day}天 ${r.clock} · ${r.where} · ${r.what}</li>`).join('')}</ul><p>影响：招工录取率下降、<b>临时安保不要</b>、工钱打折、工友疏远。</p>` : '<p>保持下去，保安的活才会要你。</p>'}</div></div>
-      <div class="sh-r"><div class="goalbox"><b>目标</b><p>${I.goalText}</p><p>进度：${pr.text}</p></div>
+      <div class="sh-r">${I.goal && I.goal.type === 'live' ? `<div class="goalbox"><b>我的足迹</b><p>${I.goalText}</p><button class="btn sm" id="sheet-foot">打开足迹</button></div>` : `<div class="goalbox"><b>目标</b><p>${I.goalText}</p><p>进度：${pr.text}</p></div>`}
         <table class="kv"><tr><td>体力</td><td>${Math.round(S.stats.stamina)} / ${S.maxSta}</td><td>精神</td><td>${Math.round(S.stats.mental)}</td></tr>
         <tr><td>饱腹</td><td>${Math.round(S.stats.hunger)}</td><td>体面</td><td>${G.decency()}</td></tr>
         <tr><td>街头口碑</td><td>${S.rep}</td><td>脑力</td><td>${S.attrs.brain}</td></tr>
@@ -1228,6 +1285,7 @@
       onShow: (m, close) => {
         m.querySelectorAll('[data-bio]').forEach(li => li.onclick = async () => { close(0); await new Promise(r => setTimeout(r, 50)); await UI.bioModal(li.dataset.bio); UI.sheet(); });
         const mb = m.querySelector('#my-bio'); if (mb) mb.onclick = async () => { close(0); await new Promise(r => setTimeout(r, 50)); await UI.modal({ title: `${I.name} · 人物小传`, wide: true, html: UI.bioHtml(I.profile, 100, true) }); UI.sheet(); };
+        const sf = m.querySelector('#sheet-foot'); if (sf) sf.onclick = () => { close(0); setTimeout(() => UI.footprints(), 40); };
       } });
   };
 
@@ -1292,6 +1350,28 @@
     $('#end-title').onclick = () => { localStorage.removeItem('jxq_auto_v1'); UI.title(); };
   };
 
+  UI.footprints = function (opts) {
+    opts = opts || {};
+    const S = G.S(); if (!S || !window.FOOT) return;
+    const board = FOOT.board(S);
+    const art = {
+      dawn: A.IMG.corner.dawn, job: A.IMG.job('courier'), treat: A.IMG.place('food'),
+      mile: A.IMG.place('bank'), friend: A.IMG.place('bar'), later: A.IMG.corner.night
+    };
+    const html = `<div class="foot-journey"><p class="foot-lead">累计工钱 ¥${board.book}。花掉、存取、借款都不倒扣。走到的才上色，没发生的不编。</p><ol class="foot-path">${board.nodes.map(n => {
+      const pic = n.silhouette && !n.done ? '' : `<div class="foot-pic" style="background-image:url(${art[n.art] || art.dawn})"></div>`;
+      const who = n.id === 'arrive' ? `<div class="foot-face">${A.portrait(A.playerLook(), { bg: '#f2e6cf' })}</div>` : '';
+      const open = n.done && n.album ? `<button type="button" class="btn sm" data-foot-album="${n.album}">翻开这张</button>` : '';
+      return `<li class="foot-node ${n.done ? 'done' : 'wait'}${n.silhouette && !n.done ? ' sil' : ''}${opts.focus === n.id || opts.focus === n.album ? ' on' : ''}" data-foot="${n.id}"><span class="foot-mark"></span>${pic}${who}<div><b>${n.title}</b><p>${n.text}</p>${open}</div></li>`;
+    }).join('')}</ol></div>`;
+    UI.modal({ title: '我的足迹', wide: true, cls: 'foot-modal', html, buttons: [{ text: '合上' }, { text: '打开相册', value: 'album' }], onShow: (m, close) => {
+      const hit = opts.focus && m.querySelector(`[data-foot="${opts.focus}"], [data-foot-album="${opts.focus}"]`);
+      const node = hit && hit.closest ? hit.closest('.foot-node') : hit;
+      if (node) node.scrollIntoView({ block: 'center' });
+      m.querySelectorAll('[data-foot-album]').forEach(b => b.onclick = () => { const id = b.dataset.footAlbum; close('stay'); setTimeout(() => UI.album({ focus: id }), 30); });
+    } }).then(v => { if (v === 'album') UI.album(); });
+  };
+
   // ---------- 相册（剪贴簿） ----------
   UI.album = function (opts) {
     opts = opts || {};
@@ -1308,7 +1388,9 @@
       job: { label: '第一份活', cls: 'k-job' },
       moment: { label: '瞬间', cls: 'k-moment' },
       seal: { label: '印章', cls: 'k-seal' },
-      cloth: { label: '新衣服', cls: 'k-cloth' }
+      cloth: { label: '新衣服', cls: 'k-cloth' },
+      milestone: { label: '足迹', cls: 'k-mile' },
+      treat: { label: '自己请的', cls: 'k-treat' }
     };
     const pic = e => { if (e.kind === 'job' && /^job_/.test(e.id)) return A.IMG.job(e.id.slice(4)); return { arrive: A.IMG.corner.dawn, send: A.IMG.place('bank'), story: A.IMG.place('bar'), caught: A.IMG.corner.night, day: A.IMG.place('inn'), seal: A.IMG.title, cloth: A.IMG.place('clothes') }[e.kind] || A.IMG.corner.day; };
     const list = S.album.slice().sort((a, b) => (a.day - b.day) || String(a.clock).localeCompare(String(b.clock)));
@@ -1316,21 +1398,27 @@
     if (!list.length) {
       body = `<div class="album-empty"><p class="kicker">剪贴簿还是空的</p><p>寄钱回家、大巴上听故事、第一次干完一份活、撑过一天……这些都会自动收进来。</p><p class="muted">顶栏「相册」随时可以翻看。</p></div>`;
     } else {
+      const linked = window.FOOT ? new Set(FOOT.board(S).nodes.map(n => n.album).filter(Boolean)) : new Set();
       body = `<div class="album-scrap"><p class="album-head">一共 ${list.length} 张 · 按时间排</p>` + list.map((e, i) => {
         const k = KIND[e.kind] || KIND.moment;
         const amt = e.amount != null ? `<span class="album-amt">¥${e.amount}</span>` : '';
-        return `<article class="album-card ${k.cls}" style="--tilt:${(i % 2 ? 1.2 : -1.1)}deg"><div class="album-pic" style="background-image:url(${pic(e)})"></div>
+        const back = linked.has(e.id) ? `<button type="button" class="btn sm ghost album-foot" data-open-foot="${esc(e.id)}">在足迹里看</button>` : '';
+        return `<article class="album-card ${k.cls}${opts.focus === e.id ? ' on' : ''}" data-album="${esc(e.id)}" style="--tilt:${(i % 2 ? 1.2 : -1.1)}deg"><div class="album-pic" style="background-image:url(${pic(e)})"></div>
           <div class="album-stamp">${k.label}</div>
           <div class="album-meta">第 ${e.day} 天 · ${e.clock}</div>
           <h3>${esc(e.title)}</h3>
           <p>${esc(e.caption || '')}</p>
-          ${amt}
+          ${amt}${back}
         </article>`;
       }).join('') + '</div>';
     }
     const btns = [{ text: '合上相册' }];
     if (opts.fromEnd || (S.ended && window.ShareCard)) btns.unshift({ text: '保存图片 / 晒一晒', cls: 'primary' });
-    UI.modal({ title: '相册', wide: true, cls: 'album-modal', html: body, buttons: btns }).then(i => {
+    UI.modal({ title: '相册', wide: true, cls: 'album-modal', html: body, buttons: btns, onShow: (m, close) => {
+      const card = opts.focus && m.querySelector(`[data-album="${opts.focus}"]`);
+      if (card) card.scrollIntoView({ block: 'center' });
+      m.querySelectorAll('[data-open-foot]').forEach(b => b.onclick = () => { const id = b.dataset.openFoot; close('foot'); setTimeout(() => UI.footprints({ focus: id }), 30); });
+    } }).then(i => {
       if ((opts.fromEnd || S.ended) && i === 0 && btns.length > 1) {
         if (opts.onShare) opts.onShare();
         else if (window.ShareCard && S.ended) {

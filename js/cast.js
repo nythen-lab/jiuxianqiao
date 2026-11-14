@@ -7,23 +7,12 @@
     { id: 'bit', name: '什么都沾过一点', blurb: '没有特别擅长的，也没有空白。', outfit: 'old', money: 300, maxStamina: 100, stats: { stamina: 88, mental: 72, hunger: 70, clean: 64 }, attrs: { brain: 6, exp: 5, phone: 6 }, skills: { hands: 1, knife: 1, eye: 1, pick: 0 } },
     { id: 'fresh', name: '刚进城', blurb: '口袋薄，人还精神。', outfit: 'old', money: 180, maxStamina: 100, stats: { stamina: 90, mental: 74, hunger: 70, clean: 66 }, attrs: { brain: 5, exp: 2, phone: 5 }, skills: { hands: 0, knife: 0, eye: 1, pick: 0 } }
   ];
-  const LOOKS = {
-    x: [
-      { id: 'short', label: '短发', look: { skin: '#d8a983', hair: 'short', hairColor: '#1e1a18', shirt: '#3d4a3e' } },
-      { id: 'long', label: '长发', look: { skin: '#f1c9a5', hair: 'long', hairColor: '#2a1f1c', shirt: '#4f7fa8' } },
-      { id: 'cap', label: '帽子', look: { skin: '#c99a74', hair: 'cap', hairColor: '#222', shirt: '#2a2a2e' } }
-    ],
-    m: [
-      { id: 'short', label: '短发', look: { skin: '#d8a983', hair: 'short', hairColor: '#1e1a18', shirt: '#3d4a3e' } },
-      { id: 'grey', label: '灰发', look: { skin: '#c9926a', hair: 'grey', hairColor: '#8d8a86', shirt: '#6b5a45' } },
-      { id: 'cap', label: '帽子', look: { skin: '#c99a74', hair: 'cap', hairColor: '#222', shirt: '#2a2a2e' } }
-    ],
-    f: [
-      { id: 'crop', label: '短发', look: { skin: '#f0c8a8', hair: 'short', hairColor: '#2a1f1c', shirt: '#b5545c' } },
-      { id: 'long', label: '长发', look: { skin: '#f1c9a5', hair: 'long', hairColor: '#2a1f1c', shirt: '#4f7fa8' } },
-      { id: 'tied', label: '束发', look: { skin: '#e0b48f', hair: 'long', hairColor: '#3a2a22', shirt: '#6b5a45' } }
-    ]
-  };
+  const HAIR = [
+    { id: 'short', label: '短发', look: { skin: '#d8a983', hair: 'short', hairColor: '#1e1a18', shirt: '#3d4a3e' } },
+    { id: 'long', label: '长发', look: { skin: '#f1c9a5', hair: 'long', hairColor: '#2a1f1c', shirt: '#4f7fa8' } },
+    { id: 'tied', label: '束发', look: { skin: '#e0b48f', hair: 'tied', hairColor: '#3a2a22', shirt: '#6b5a45' } }
+  ];
+  const LOOKS = { x: HAIR, m: HAIR, f: HAIR };
   const PEOPLE = [
     { id: 'hejie', name: '何姐', age: 34, gender: 'f', place: 'food', job: '饭馆后厨', home: '桥南平房', look: { skin: '#e0b48f', hair: 'long', hairColor: '#3a2a22', shirt: '#b5545c', age: 34 }, teach: { skill: 'knife', xp: 12, text: '何姐让你看她怎么片肉。刀工经验 +12。' } },
     { id: 'acheng', name: '阿成', age: 28, gender: 'm', place: 'corner', job: '跑腿', home: '网吧楼上', look: { skin: '#d8a983', hair: 'short', hairColor: '#1e1a18', shirt: '#3d4a3e', age: 28 }, teach: { skill: 'hands', xp: 12, text: '阿成把近路告诉你。手脚麻利经验 +12。' } },
@@ -67,8 +56,8 @@
       look, outfit: bg.outfit, startMoney: bg.money, maxStamina,
       stats, attrs: Object.assign({}, bg.attrs), skills: Object.assign({}, bg.skills),
       goal: { type: 'live', marks: [1000, 2000, 3000] },
-      goalText: '靠自己挣到的钱，先后攒到 1000、2000、3000。花掉不算倒退。攒到三千，想走可以走，不想走就接着过。',
-      goalBullets: ['累计的是工钱和卖东西的钱，不是口袋里还剩多少', '存钱、取钱、借钱不算新收入', '每一档有一次实在的回报，没有截止日期'],
+      goalText: '把在酒仙桥走过的日子记成足迹。工钱一档一档攒着，花掉不算倒退，也没有截止日期。',
+      goalBullets: ['第一份工钱和第一顿自己请的，要真的发生才记', '累计的是工钱和卖东西的钱，不是口袋里还剩多少', '一千、两千、三千各有一次回报，领过就不再领'],
       npcTalks: []
     };
     return { identity, pref };

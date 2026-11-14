@@ -121,6 +121,8 @@
         } else if (kind === 'up') { if (g.drag && !g.drag.moved && !g.drag.dropped && performance.now() - g.drag.t < 350) rotate(); g.drag = null; hold = null; g.pressed = null; }
       };
       g.hud = () => [['层', g.lines], ['摔坏', g.broken, g.broken ? '#e8705a' : null]];
+      g.playBox = { x: BX, y: BY, w: COLS * C, h: ROWS * C };
+      g.hintExternal = true;
       g.hint = () => !g.piece ? null : g.locked < 3 ? '← → 移动，↑ 旋转，空格直接落下；横向码满一层就消掉' : g.warn ? '货堆在晃！消掉几层，或把空档补上' : null;
       g.onStart = () => spawn();
       g.update = dt => {
