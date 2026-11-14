@@ -60,7 +60,7 @@
     const base = id.split(':')[0];
     const sub = id.split(':')[1] || '';
     if (base === 'temple') return (sub === 'bow' || sub === 'wish') ? 'free' : 'spend';
-    if (base === 'sleep') return (sub === 'street' || sub === 'shelter') ? 'free' : 'spend';
+    if (base === 'sleep') return (sub === 'street' || sub === 'shelter' || sub === 'home' || sub === 'month') ? 'free' : 'spend';
     if (base === 'tjob' || base === 'sell' || base === 'scrap' || base === 'fishsell' || base === 'gig') return 'earn';
     if (base === 'oddjob') return 'chore';
     if (base === 'scratch' || base === 'pick') return 'risk';

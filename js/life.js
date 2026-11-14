@@ -99,7 +99,7 @@
   LIFE.gainFish = function (name) { const k = C.fishKinds.find(f => f.name === name) || pick(C.fishKinds); const l = LIFE.st(); l.fish.push({ name: k.name, sell: ri(k.sell[0], k.sell[1]), hunger: k.hunger, mental: k.mental }); if (l.fish.length > 6) l.fish.shift(); return k; };
 
   // ================= 面板 =================
-  const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay'];
+  const ACTS = ['bath', 'bankbook', 'fish', 'fishsell', 'fishcook', 'fishgive', 'partner', 'hallwed', 'hallpeek', 'hallphoto', 'salesview', 'salespay', 'salespeek', 'kinderenroll', 'kinderpick', 'kinderfee', 'kinderpeek', 'homecook', 'homefish', 'homebaby', 'homechat', 'homestay', 'folk'];
   LIFE.has = k => ACTS.includes(k);
   const ICON = { bath: '🛁', bankbook: '📒', life: '🌱', fishsell: '💴', fishcook: '🍲', fishgive: '🎁', partner: '💞', hallwed: '💒', hallpeek: '👀', hallphoto: '📸', salesview: '🏘️', salespay: '🧾', salespeek: '🪟', kinderenroll: '📝', kinderpick: '🎒', kinderfee: '🧾', kinderpeek: '🧸', homecook: '🍳', homefish: '🐟', homebaby: '👶', homechat: '💬', homestay: '🏡' };
   { const ai = UI.actIcon; UI.actIcon = id => ICON[id.split(':')[0]] || ai(id); }
