@@ -151,10 +151,14 @@
       cv.addEventListener('pointerdown', pd); cv.addEventListener('pointermove', pm); cv.addEventListener('pointerup', pu); cv.addEventListener('pointercancel', pu);
       cv.addEventListener('contextmenu', e => e.preventDefault());
       const KEYS = { ArrowLeft: 'left', ArrowRight: 'right', ArrowUp: 'up', ArrowDown: 'down', ' ': 'space', Enter: 'enter', a: 'left', d: 'right', w: 'up', s: 'down', A: 'left', D: 'right', W: 'up', S: 'down', z: 'z', x: 'x', Escape: 'esc', 1: '1', 2: '2', 3: '3', 4: '4', 5: '5', p: 'p', P: 'p', r: 'r', R: 'r', u: 'u', U: 'u', h: 'h', H: 'h' };
-      const kd = e => { if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; const k = KEYS[e.key]; if (!k) return;
+      const kd = e => { if (e.target && /^(INPUT|TEXTAREA|SELECT)$/.test(e.target.tagName)) return; const k = KEYS[e.key];
         if (env.phase === 'help') { if (k === 'enter' || k === 'space') { if (env.reopen) { env.reopen = false; env.phase = env.prev || 'play'; } else ack(); e.preventDefault(); } return; }
         if (env.phase === 'end') { if (k === 'enter' || k === 'space') { done(); e.preventDefault(); } return; }
-        if (env.phase === 'play' && game.key) { if (game.key(k, true, e) !== false) e.preventDefault(); } };
+        if (env.phase === 'play' && game.key) {
+          let used = k != null && game.key(k, true, e) !== false;
+          if (!used && e.key !== k) used = game.key(e.key, true, e) !== false;
+          if (used) e.preventDefault();
+        } };
       const ku = e => { const k = KEYS[e.key]; if (k && env.phase === 'play' && game.key) game.key(k, false, e); };
       window.addEventListener('keydown', kd); window.addEventListener('keyup', ku);
       // ---------- 主循环 ----------
