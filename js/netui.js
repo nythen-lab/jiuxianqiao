@@ -42,17 +42,25 @@
         const spark = (id) => { const b = NET.bars(id).slice(-14).map(x => x.c), lo = Math.min(...b), hi = Math.max(...b), w = 70, h = 22; return `<svg width="${w}" height="${h}">${`<polyline fill="none" stroke="${b[b.length - 1] >= b[0] ? up : dn}" stroke-width="1.6" points="${b.map((v, i) => `${(i / Math.max(1, b.length - 1) * w).toFixed(1)},${(h - 2 - (v - lo) / Math.max(.01, hi - lo) * (h - 4)).toFixed(1)}`).join(' ')}"/>`}</svg>`; };
         const stockView = () => {
           if (st.wiz && st.wiz.kind === 'acct') return acctWiz();
-          if (!NET.hasAcct()) return `${msg()}<div class="net-intro"><h4>📈 证券账户</h4><p>网吧里能开户炒股：6 支虚构的股票，每天一个价。开户费 <b>${money(N.accountFee)}</b>，手续 <b>${N.accountMin} 分钟</b>，要填表、做风险测评、手写签名。</p><p class="net-warn">${N.disclaimer}</p><button class="btn" data-a="acctstart">我要开户</button></div>`;
+          if (!NET.hasAcct()) {
+            const day = (C.townDays.find(x => x[1] === 'stock') || [6])[0];
+            const locked = window.TOWN && !TOWN.available('stock');
+            const gate = locked ? `<p class="net-msg bad">证券开户第 ${day} 天开放。今天是第 ${G0.dayNum()} 天。先去干别的，到了第 ${day} 天再点「我要开户」。</p>` : '';
+            return `${msg()}${gate}<div class="net-intro"><h4>📈 证券账户</h4><p>网吧里能开户炒股：6 支虚构的股票，每天一个价。开户费 <b>${money(N.accountFee)}</b>，手续 <b>${N.accountMin} 分钟</b>，要填表、做风险测评、手写签名。</p><p class="net-warn">${N.disclaimer}</p><button class="btn" data-a="acctstart">我要开户</button></div>`;
+          }
           const a = NET.st().acct, hv = NET.holdValue(), pf = NET.portfolio();
           const sum = `<div class="net-sum"><span>证券户现金 <b>${money(a.cash)}</b></span><span>持仓市值 <b>${money(hv)}</b></span><span>合计 <b>${money(a.cash + hv)}</b></span><span class="muted">累计手续费 ${money(a.fees)}</span></div>`;
-          const tr = `<div class="net-row2"><input id="net-amt" class="bk-amt" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="整数金额" autocomplete="off"><button class="btn sm" data-a="tin" data-id="pocket">口袋转入</button><button class="btn sm" data-a="tin" data-id="bank">存折转入</button><button class="btn sm ghost" data-a="tout" data-id="pocket">转出到口袋</button><button class="btn sm ghost" data-a="tout" data-id="bank">转出到存折</button></div><p class="muted">存折余额 ${money(L().bank)}（转账会记在存折流水里）</p>`;
+          const broke = !st.stock && !N.stocks.some(s => NET.maxShares(s.id) >= 1);
+          const fund = broke ? `<p class="net-msg bad">${esc(NET.fundHint(N.stocks.slice().sort((x, y) => NET.price(x.id) - NET.price(y.id))[0].id))}</p>` : '';
+          const tr = `<div class="net-row2"><input id="net-amt" class="bk-amt" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="转入金额" autocomplete="off"><button class="btn sm" data-a="tin" data-id="pocket">口袋转入</button><button class="btn sm" data-a="tin" data-id="bank">存折转入</button><button class="btn sm ghost" data-a="tout" data-id="pocket">转出到口袋</button><button class="btn sm ghost" data-a="tout" data-id="bank">转出到存折</button></div><p class="muted">存折余额 ${money(L().bank)}（转账会记在存折流水里）</p>`;
           const rows = N.stocks.map(s => { const px = NET.price(s.id), ch = NET.change(s.id); return `<li><button class="net-row stk ${st.stock === s.id ? 'on' : ''}" data-a="stock" data-id="${s.id}"><span>${s.name} <small>${s.code}</small></span><span>${spark(s.id)}</span><b class="${colr(ch)}">${px.toFixed(2)}</b><span class="${colr(ch)}">${pct(ch)}</span></button></li>`; }).join('');
           let det = '';
-          if (st.stock) { const s = N.stocks.find(x => x.id === st.stock), h = a.hold[s.id], px = NET.price(s.id), maxB = Math.max(0, Math.floor((a.cash - 1) / (px * (1 + N.tradeFeeRate))));
-            det = `<div class="net-det"><h4>${s.name} <small>${s.code} · ${s.blurb}</small></h4><canvas id="net-chart" width="640" height="170"></canvas><p class="muted">红涨绿跌 · 最近 22 个交易日 · 现价 <b>${px.toFixed(2)}</b> · 你持有 <b>${h ? h.n : 0}</b> 股${h ? `（成本 ${(h.cost / h.n).toFixed(2)}）` : ''}</p>
-              <div class="net-row2"><input id="net-qty" class="bk-amt" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="股数（整数）" autocomplete="off"><button class="btn sm ghost" data-a="qmaxb">最多买 ${maxB}</button><button class="btn sm ghost" data-a="qmaxs" ${h ? '' : 'disabled'}>全部卖出</button><button class="btn" data-a="buy">买入</button><button class="btn ghost" data-a="sell">卖出</button></div><p class="muted">每笔手续费约 0.3%（至少 ¥1），每次下单 ${N.costs.trade} 分钟。</p></div>`; }
+          if (st.stock) { const s = N.stocks.find(x => x.id === st.stock), h = a.hold[s.id], px = NET.price(s.id), maxB = NET.maxShares(s.id);
+            const why = maxB < 1 ? `<p class="net-msg bad">${esc(NET.fundHint(s.id))}</p>` : '';
+            det = `<div class="net-det"><h4>${s.name} <small>${s.code} · ${s.blurb}</small></h4><canvas id="net-chart" width="640" height="110"></canvas><p class="muted">红涨绿跌 · 最近 22 个交易日 · 现价 <b>${px.toFixed(2)}</b> · 你持有 <b>${h ? h.n : 0}</b> 股${h ? `（成本 ${(h.cost / h.n).toFixed(2)}）` : ''}</p>${why}
+              <div class="net-row2"><input id="net-qty" class="bk-amt" type="text" inputmode="numeric" pattern="[0-9]*" placeholder="股数（整数）" autocomplete="off"><button class="btn sm ghost" data-a="qmaxb">${maxB < 1 ? '现在买不了' : '最多买 ' + maxB}</button><button class="btn sm ghost" data-a="qmaxs" ${h ? '' : 'disabled'}>填入全部</button><button class="btn" data-a="buy">买入</button><button class="btn ghost" data-a="sell">卖出</button></div><p class="muted">每笔手续费约 0.3%（至少 ¥1），每次下单 ${N.costs.trade} 分钟。买入花的是证券户里的钱。</p></div>`; }
           const pfv = pf.length ? `<h4>持仓</h4><ul class="net-pf">${pf.map(p => `<li>${p.name} · ${p.n} 股 · 成本 ${p.avg.toFixed(2)} → 现价 ${p.px.toFixed(2)} · 市值 ${money(p.val)} · <b class="${colr(p.pl)}">${p.pl >= 0 ? '+' : ''}${p.pl} (${pct(p.pct)})</b></li>`).join('')}</ul>` : '<p class="muted">还没有持仓。</p>';
-          return `${msg()}${sum}${tr}<ul class="net-list stocks">${rows}</ul>${det}${pfv}<p class="net-warn">${N.disclaimer}</p>`;
+          return `${msg()}${sum}${fund}${tr}${det}<ul class="net-list stocks">${rows}</ul>${pfv}<p class="net-warn">${N.disclaimer}</p>`;
         };
         const acctWiz = () => {
           const w = st.wiz;
@@ -66,14 +74,24 @@
           return `${msg()}<p class="muted">招工网站每天更新。今天只能认真查一个（${NET.fmtMin(N.costs.job)}），查了就记在心里，明天去问录取率 +8%。</p><ul class="net-list">${js.map(j => `<li class="net-job"><div><b>${esc(j.name)}</b> <small>${when(j)} · 日结约 ¥${j.wage}${j.meal ? ' · 管饭' : ''}${j.needClean ? ' · 要体面' : ''}</small><br><span class="muted">${esc(j.desc || '')}</span></div><button class="btn sm" data-a="jobsel" data-id="${j.id}" ${done ? 'disabled' : ''}>${done ? '今天查过了' : '就看它'}</button></li>`).join('')}</ul>`; };
         const funView = () => `${msg()}<div class="net-fun"><div><h4>📹 给家里打视频</h4><p class="muted">${NET.fmtMin(N.costs.call)} · 精神 +8 · 一天一次</p><button class="btn" data-a="call">拨过去</button></div><div><h4>🎬 看一部电影</h4><p class="muted">${NET.fmtMin(N.costs.movie)} · 精神 +10 · 体力 +3 · 饱腹 −4 · 一天一次</p><button class="btn" data-a="movie">点播一部</button></div></div>`;
         // ---------- 渲染与事件 ----------
-        const draw = () => { root.innerHTML = head() + `<div class="net-body">${st.tab === 'forum' ? forumView() : st.tab === 'stock' ? stockView() : st.tab === 'job' ? jobView() : funView()}</div>`; msgClear(); const cv = $(root, '#net-chart'); if (cv && st.stock) chart(cv, st.stock); const sg = $(root, '#net-sign'); if (sg) signpad(sg); };
+        const draw = (opt) => {
+          const prev = $(root, '.net-body'); const keep = prev ? prev.scrollTop : 0;
+          root.innerHTML = head() + `<div class="net-body">${st.tab === 'forum' ? forumView() : st.tab === 'stock' ? stockView() : st.tab === 'job' ? jobView() : funView()}</div>`;
+          msgClear();
+          const nb = $(root, '.net-body'), det = $(root, '.net-det');
+          if (opt && opt.reveal && det && nb) { const y = det.getBoundingClientRect().top - nb.getBoundingClientRect().top + nb.scrollTop; nb.scrollTop = Math.max(0, y - 6); }
+          else if (nb) nb.scrollTop = keep;
+          const cv = $(root, '#net-chart'); if (cv && st.stock) chart(cv, st.stock); const sg = $(root, '#net-sign'); if (sg) signpad(sg);
+        };
         const msgClear = () => { st.msg = ''; st.msgBad = false; };
         const chart = (cv, id) => { const c = cv.getContext('2d'), b = NET.bars(id).slice(-22), W = cv.width, H = cv.height, lo = Math.min(...b.map(x => x.l)) * .98, hi = Math.max(...b.map(x => x.h)) * 1.02, y = v => H - 16 - (v - lo) / Math.max(.01, hi - lo) * (H - 30), bw = W / b.length;
           c.fillStyle = '#16120d'; c.fillRect(0, 0, W, H); c.strokeStyle = 'rgba(255,230,180,.12)'; c.lineWidth = 1; for (let i = 0; i < 4; i++) { const yy = 10 + i * (H - 30) / 3; c.beginPath(); c.moveTo(0, yy); c.lineTo(W, yy); c.stroke(); c.fillStyle = 'rgba(255,230,180,.45)'; c.font = '11px sans-serif'; c.fillText((hi - (hi - lo) * i / 3).toFixed(1), 3, yy - 2); }
           b.forEach((k, i) => { const x = i * bw + bw / 2, u = k.c >= k.o, col = u ? up : dn; c.strokeStyle = col; c.fillStyle = col; c.beginPath(); c.moveTo(x, y(k.h)); c.lineTo(x, y(k.l)); c.stroke(); c.fillRect(x - bw * .3, Math.min(y(k.o), y(k.c)), bw * .6, Math.max(2, Math.abs(y(k.o) - y(k.c)))); }); };
         const signpad = cv => { const c = cv.getContext('2d'); c.fillStyle = '#f4ecd8'; c.fillRect(0, 0, cv.width, cv.height); c.strokeStyle = '#2a2018'; c.lineWidth = 3; c.lineCap = 'round'; c.lineJoin = 'round'; let on = false, lx = 0, ly = 0, len = st.wiz.len || 0; const pos = e => { const r = cv.getBoundingClientRect(); return [(e.clientX - r.left) * cv.width / r.width, (e.clientY - r.top) * cv.height / r.height]; };
           cv.onpointerdown = e => { on = true;[lx, ly] = pos(e); cv.setPointerCapture && cv.setPointerCapture(e.pointerId); }; cv.onpointermove = e => { if (!on) return; const [x, y] = pos(e); c.beginPath(); c.moveTo(lx, ly); c.lineTo(x, y); c.stroke(); len += Math.hypot(x - lx, y - ly); lx = x; ly = y; st.wiz.len = len; const b = $(root, '#af-sign-ok'); if (b) b.disabled = len < 150; }; cv.onpointerup = cv.onpointercancel = () => { on = false; }; };
+        let revealNext = false;
         root.addEventListener('click', async e => {
+          revealNext = false;
           const b = e.target.closest('[data-a]'); if (!b || b.disabled) return; const a = b.dataset.a, id = b.dataset.id; const val = s => ($(root, s) || {}).value;
           const apply = r => { if (r.err) { say(r.err, true); sfx('bad'); } return r; };
           if (a === 'tab') { if (id === 'stock' && NET.hasAcct() && st.tab !== 'stock') { const r = NET.use(N.costs.market, '看行情'); if (r.err) { say(r.err, true); draw(); return; } } stopT(); st.tab = id; st.wiz = null; st.read = null; }
@@ -87,21 +105,21 @@
           else if (a === 'wtitleown') { const t = String(val('#net-title') || '').trim(); if (!t) say('标题不能空着。', true); else { st.wiz.title = t; st.wiz.step = 3; } }
           else if (a === 'wtone') { st.wiz.tone = id; st.wiz.step = 4; return startRound(); }
           else if (a === 'wpolish') return pickPolish(+id);
-          else if (a === 'acctstart') { st.wiz = { kind: 'acct', step: 1 }; }
+          else if (a === 'acctstart') { const day = (C.townDays.find(x => x[1] === 'stock') || [6])[0]; if (window.TOWN && !TOWN.available('stock')) say(`证券开户第 ${day} 天开放。今天是第 ${G0.dayNum()} 天。到了那天再来办理。`, true); else st.wiz = { kind: 'acct', step: 1 }; }
           else if (a === 'af1') { const nm = '本人', r = [1, 2, 3].map(i => (root.querySelector(`input[name=r${i}]:checked`) || {}).value); if (r.some(x => !x)) say('三道风险测评都要选。', true); else { st.wiz.name = nm; st.wiz.risk = r.filter(x => x === 'c').length >= 2 ? 'bold' : 'steady'; st.wiz.step = 2; } }
           else if (a === 'signclear') { st.wiz.len = 0; }
           else if (a === 'af2') { st.wiz.step = 3; }
-          else if (a === 'af3') { const w = st.wiz; if (S.money < N.accountFee) { say(`开户费 ¥${N.accountFee}，钱不够。`, true); } else if (NET.st().min < N.accountMin) { say(`上网时间不够：要 ${NET.fmtMin(N.accountMin)}，先充钟。`, true); } else { w.busy = true; draw(); const bar = $(root, '#net-prog'); const t0 = Date.now(), D = fast() ? 80 : 1400; await new Promise(res => { const iv = setInterval(() => { const f = Math.min(1, (Date.now() - t0) / D); if (bar) bar.style.width = f * 100 + '%'; if (f >= 1) { clearInterval(iv); res(); } }, 40); }); const r = NET.openAccount({ signed: true, risk: w.risk, name: w.name }); st.wiz = null; if (r.err) say(r.err, true); else { say(w.risk === 'bold' ? '开户成功。你测出来是「胆子大」，也请记得：钱是辛苦挣来的。' : '开户成功。先转点钱进去，别全转。'); sfx('coin'); } } }
+          else if (a === 'af3') { const w = st.wiz; if (S.money < N.accountFee) { say(`开户费 ¥${N.accountFee}，钱不够。`, true); } else if (NET.st().min < N.accountMin) { say(`上网时间不够：要 ${NET.fmtMin(N.accountMin)}，先充钟。`, true); } else { w.busy = true; draw(); const bar = $(root, '#net-prog'); const t0 = Date.now(), D = fast() ? 80 : 1400; await new Promise(res => { const iv = setInterval(() => { const f = Math.min(1, (Date.now() - t0) / D); if (bar) bar.style.width = f * 100 + '%'; if (f >= 1) { clearInterval(iv); res(); } }, 40); }); const r = NET.openAccount({ signed: true, risk: w.risk, name: w.name }); st.wiz = null; if (r.err) say(r.err, true); else { const bank = L().bank; say(`开户成功。证券户现在是 ¥0，还不能买。口袋还有 ¥${S.money}，存折还有 ¥${bank}。在「转入金额」里填整数，点「口袋转入」或「存折转入」，再点一支股票，填写股数，点「买入」。${w.risk === 'bold' ? '你测出来是「胆子大」，也请记得钱是辛苦挣来的。' : '别把饭钱全转进去。'}`); sfx('coin'); } } }
           else if (a === 'tin' || a === 'tout') { const r = apply(NET.transfer(a === 'tin' ? 'in' : 'out', id, val('#net-amt'))); if (!r.err) { say(`${a === 'tin' ? '转入' : '转出'} ¥${r.n}。`); sfx('coin'); } }
-          else if (a === 'stock') { st.stock = st.stock === id ? null : id; const r = NET.st(); }
-          else if (a === 'qmaxb') { const aa = NET.st().acct, px = NET.price(st.stock); $(root, '#net-qty').value = String(Math.max(0, Math.floor((aa.cash - 1) / (px * (1 + N.tradeFeeRate))))); return; }
+          else if (a === 'stock') { st.stock = st.stock === id ? null : id; revealNext = !!st.stock; }
+          else if (a === 'qmaxb') { const n = NET.maxShares(st.stock); if (n < 1) say(NET.fundHint(st.stock), true); else { $(root, '#net-qty').value = String(n); return; } }
           else if (a === 'qmaxs') { const h = NET.st().acct.hold[st.stock]; $(root, '#net-qty').value = String(h ? h.n : 0); return; }
           else if (a === 'buy') { const r = apply(NET.buy(st.stock, val('#net-qty'))); if (!r.err) { say(`买入 ${r.n} 股，成交价 ${r.px.toFixed(2)}，花 ¥${r.amt}，手续费 ¥${r.fee}。`); sfx('coin'); } }
           else if (a === 'sell') { const r = apply(NET.sell(st.stock, val('#net-qty'))); if (!r.err) { say(`卖出 ${r.n} 股，成交价 ${r.px.toFixed(2)}，到账 ¥${r.amt - r.fee}（手续费 ¥${r.fee}），${r.pl >= 0 ? '赚' : '亏'} ¥${Math.abs(r.pl)}。`); sfx('coin'); } }
           else if (a === 'jobsel') { const r = apply(NET.jobSearch(id)); if (!r.err) say(`你把「${r.job.name}」的招工细节抄了下来。明天去问，录取率 +8%。`); }
           else if (a === 'call') { const r = apply(NET.call()); if (!r.err) say(r.text + ' 精神 +8'); }
           else if (a === 'movie') { const r = apply(NET.movie()); if (!r.err) say(`${r.name}：${r.text} 精神 +10 · 体力 +3 · 饱腹 −4`); }
-          draw(); UI.render && UI.render();
+          draw(revealNext ? { reveal: true } : null); UI.render && UI.render();
         });
         draw();
         if (settled.length) { settled.forEach(s => { UI.toast(s.post.tier === 'bad' ? `你的帖子「${s.post.title}」被喷了 · 精神 ${s.mental}` : `你的帖子「${s.post.title}」${s.post.tier === 'good' ? '火了' : '有回复'}！稿费 ¥${s.pay}`, s.post.tier === 'bad' ? 'bad' : ''); }); }

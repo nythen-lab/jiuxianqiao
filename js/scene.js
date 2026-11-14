@@ -44,8 +44,8 @@
     return places.filter(p => !(p.hidden && !(G.isUnlocked && G.isUnlocked('place', p)))).map(p => {
       const unl = G.isUnlocked ? G.isUnlocked('place', p) : true;
       if (!unl) return `<div class="bld locked" data-lock="${p.id}" title="${p.unlockHint || '还没开放'}"><div class="th"><i>🔒</i></div><div class="bt"><b>？？？</b><small>${p.unlockHint || '还没开放'}</small></div></div>`;
-      const o = G.isOpen(p), here = S.loc === p.id;
-      return `<div class="bld${here ? ' here' : ''}${o ? '' : ' shut'}" data-loc="${p.id}" title="${p.name}${big ? '' : ' · ' + (here ? '你在这儿' : o ? `走过去 ${G.travelMin ? G.travelMin(S.loc, p.id) : 10} 分钟` : '已打烊')}"><div class="th" style="background-image:url(${A.placeImg(p.id, h)})"><i>${ICON[p.id] || ''}</i></div><div class="bt"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿' : o ? '走过去 10 分钟' : '已打烊'}</small>${big ? `<em>${p.desc || ''}</em>` : ''}</div><span class="hit"></span></div>`;
+      const o = G.isOpen(p), here = S.loc === p.id, fresh = G.placeIsFresh && G.placeIsFresh(p.id);
+      return `<div class="bld${here ? ' here' : ''}${o ? '' : ' shut'}${fresh ? ' fresh' : ''}" data-loc="${p.id}" title="${p.name}${fresh ? ' · 新解锁' : ''}${big ? '' : ' · ' + (here ? '你在这儿' : o ? `走过去 ${G.travelMin ? G.travelMin(S.loc, p.id) : 10} 分钟` : '已打烊')}"><div class="th" style="background-image:url(${A.placeImg(p.id, h)})"><i>${ICON[p.id] || ''}</i></div><div class="bt"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿' : o ? '走过去 10 分钟' : '已打烊'}${fresh ? ' · 新解锁' : ''}</small>${big ? `<em>${p.desc || ''}</em>` : ''}</div>${fresh ? '<em class="pnew">新解锁</em>' : ''}<span class="hit"></span></div>`;
     }).join('');
   };
   // v0.9 酒仙桥镇地图：一张画 + HTML 地名标签和图钉
@@ -54,12 +54,13 @@
     const sea = G.season ? G.season() : null;
     const pins = ORDER.map(id => C.places.find(p => p.id === id)).filter(p => p && M.pins[p.id] && !(p.hidden && !(G.isUnlocked && G.isUnlocked('place', p)))).map(p => {
       const [x, y] = M.pins[p.id]; const unl = G.isUnlocked ? G.isUnlocked('place', p) : true; const here = S.loc === p.id; const o = G.isOpen(p);
+      const fresh = !!(unl && G.placeIsFresh && G.placeIsFresh(p.id));
       const hint = p.unlockHint || '还没开放';
       const placeCls = `${y < 20 ? ' dn' : ''}${x >= 78 ? ' pull-l' : x <= 16 ? ' pull-r' : ''}${p.id === 'corner' ? ' focal' : ''}${!unl && hint.length > 14 ? ' long' : ''}`;
-      const style = `--x:${x};--y:${y};z-index:${p.id === 'corner' ? 30 : Math.round(y)}`;
+      const style = `--x:${x};--y:${y};z-index:${fresh ? 40 : p.id === 'corner' ? 30 : Math.round(y)}`;
       if (!unl) return `<button class="pin locked${placeCls}" data-lock="${p.id}" style="${style}" title="${hint}"><i>🔒</i><span class="pl"><b>？？？</b><small>${hint}</small></span></button>`;
       const m = G.travelMin(S.loc, p.id);
-      return `<button class="pin${placeCls}${here ? ' here' : ''}${o ? '' : ' shut'}" data-pin="${p.id}" style="${style}" title="${p.name}"><i>${ICON[p.id] || '📍'}</i><span class="pl"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿 · 点进去' : `${m} 分钟${o ? '' : ' · 已打烊'}`}</small></span>${badges[p.id] ? `<em class="pbadge">${badges[p.id]}</em>` : ''}</button>`;
+      return `<button class="pin${placeCls}${here ? ' here' : ''}${o ? '' : ' shut'}${fresh ? ' fresh' : ''}" data-pin="${p.id}" style="${style}" title="${p.name}${fresh ? ' · 新解锁' : ''}"><i>${ICON[p.id] || '📍'}</i><span class="pl"><b>${SHORT[p.id] || p.name}</b><small>${here ? '你在这儿 · 点进去' : `${m} 分钟${o ? '' : ' · 已打烊'}`}</small></span>${badges[p.id] ? `<em class="pbadge">${badges[p.id]}</em>` : ''}${fresh ? '<em class="pnew">新解锁</em>' : ''}</button>`;
     }).join('');
     const deco = (M.deco || []).map(d => `<span class="mdeco" style="--x:${d.x};--y:${d.y}" title="${d.note || ''}">${d.label}</span>`).join('');
     return `<div class="townmap" data-mode="${mode}" data-season="${sea ? sea.id : ''}"><div class="tm-img" style="background-image:url(${window.FX ? FX.mapImg(h) : M.img})"></div><div class="tm-tint ${mode}"></div><div class="tm-season"></div>

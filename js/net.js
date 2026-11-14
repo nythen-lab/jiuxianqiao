@@ -111,11 +111,29 @@
     return { ok: true, n };
   };
   NET.fee = amt => Math.max(N.tradeFeeMin, Math.round(amt * N.tradeFeeRate));
+  NET.shareCost = function (id, n) { const px = NET.price(id), amt = Math.round(px * n), fee = NET.fee(amt); return { px, n, amt, fee, total: amt + fee }; };
+  NET.maxShares = function (id) {
+    const a = NET.st().acct; if (!a || !(a.cash > 0)) return 0; const px = NET.price(id); if (!(px > 0)) return 0;
+    let n = Math.floor(a.cash / px); while (n > 0 && NET.shareCost(id, n).total > a.cash) n--; return n;
+  };
+  NET.fundHint = function (id) {
+    const a = NET.st().acct; if (!a) return '先开户。'; const s = stock(id); if (!s) return '没有这支股票。';
+    const one = NET.shareCost(id, 1), S = S0(), l = L(), bits = [];
+    if (S && S.money > 0) bits.push(`口袋还有 ¥${S.money}，在金额格里填整数，点「口袋转入」`);
+    if (l && l.bank > 0) bits.push(`存折还有 ¥${l.bank}，点「存折转入」`);
+    const next = bits.length ? bits.join('，或') + '。' : '口袋和存折里也没有可以转的钱，先去挣钱，再转入证券户。';
+    return `还不能买：${s.name} 买 1 股要 ¥${one.total}（股价 ¥${one.amt}，手续费 ¥${one.fee}），证券户只有 ¥${a.cash || 0}。${next}`;
+  };
   NET.buy = function (id, raw) {
-    const a = NET.st().acct; if (!a) return { err: '先开户。' }; const s = stock(id); if (!s) return { err: '没有这支股票。' }; const px = NET.price(id);
-    const maxN = Math.max(0, Math.floor((a.cash - 1) / (px * (1 + N.tradeFeeRate)))); const v = intOf(raw, maxN, '买', '证券户的钱最多能买'); if (v.err) return v;
-    const amt = Math.round(px * v.n), fee = NET.fee(amt); if (amt + fee > a.cash) return { err: '钱不够（含手续费）。' }; const r = NET.use(N.costs.trade, '下单'); if (r.err) return r;
-    a.cash -= amt + fee; a.fees += fee; const h = a.hold[id] || (a.hold[id] = { n: 0, cost: 0 }); h.n += v.n; h.cost += amt + fee; return { ok: true, n: v.n, amt, fee, px };
+    const a = NET.st().acct; if (!a) return { err: '先开户。' }; if (!a.hold) a.hold = {}; if (a.cash == null) a.cash = 0;
+    const s = stock(id); if (!s) return { err: '没有这支股票。' };
+    const v = intOf(raw, 1e9, '买', '股数'); if (v.err) return v;
+    const maxN = NET.maxShares(id);
+    if (v.n > maxN) return { err: maxN < 1 ? NET.fundHint(id) : `证券户的钱最多能买 ${maxN} 股（含手续费），买不了 ${v.n} 股。` };
+    const cost = NET.shareCost(id, v.n); if (cost.total > a.cash) return { err: `钱不够（含手续费 ¥${cost.fee}）。买 ${v.n} 股要 ¥${cost.total}，证券户只有 ¥${a.cash}。` };
+    const r = NET.use(N.costs.trade, '下单'); if (r.err) return r;
+    a.cash -= cost.total; a.fees = (a.fees || 0) + cost.fee; const h = a.hold[id] || (a.hold[id] = { n: 0, cost: 0 }); h.n += v.n; h.cost += cost.total;
+    return { ok: true, n: v.n, amt: cost.amt, fee: cost.fee, px: cost.px };
   };
   NET.sell = function (id, raw) {
     const a = NET.st().acct; if (!a) return { err: '先开户。' }; const h = a.hold[id]; const have = h ? h.n : 0; const v = intOf(raw, have, '卖', '你手里的股数'); if (v.err) return v; const px = NET.price(id);

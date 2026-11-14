@@ -42,7 +42,7 @@
       stamps: [], album: [], lastDailyDay: 0, dayPostcardPending: null,
       xp: { hands: 0, knife: 0, eye: 0, pick: 0 }, starveH: 0, forced: { sleep: 0, hunger: 0, mental: 0 }, lvlups: [],
       stats_total: { worked: 0, stolen: 0, caught: 0 },
-      unlocked: {}, unlockInit: false, ach: {}, certs: {}, owed: [], lottery: null
+      unlocked: {}, unlockInit: false, placeNew: {}, ach: {}, certs: {}, owed: [], lottery: null
     };
     C.npcs.forEach(n => S.npc[n.id] = { aff: 30, talk: 0 });
     C.identities.filter(i => i.id !== idId).forEach(i => S.npc['id_' + i.id] = { aff: 30, talk: 0 });
@@ -68,6 +68,7 @@
     if (!S.forced) S.forced = { sleep: 0, hunger: 0, mental: 0 };
     if (!S.lvlups) S.lvlups = [];
     if (!S.unlocked) { S.unlocked = {}; S.unlockInit = false; G.checkUnlocks(); }
+    if (S.placeNew == null || typeof S.placeNew !== 'object' || Array.isArray(S.placeNew)) S.placeNew = {};
     if (!S.ach) S.ach = {};
     if (window.CAST) CAST.migrateSave(S);
     if (window.CAST && S.wageBook != null) G.grantIncomeMiles();
@@ -1064,10 +1065,33 @@
     if (S.unlocked[key]) return true;
     if (!G.unlockOk(o.unlock)) return false;
     S.unlocked[key] = G.dayNum();
-    if (S.unlockInit) { const t = (C.unlockText[kind] || '{name}').replace('{name}', o.name); G.log(t, 'good'); G.queue.push({ title: '解锁', text: t + (kind === 'job' ? `（${o.window === 'morning' ? '早高峰' : '晚高峰'}在路口招人）` : '') }); }
+    if (S.unlockInit) {
+      if (kind === 'place') {
+        S.placeNew = S.placeNew || {};
+        const inside = S.view === 'place' && S.loc === o.id;
+        if (!inside) S.placeNew[o.id] = S.placeNew[o.id] || G.dayNum();
+        const short = (window.ART && ART.placeShort) ? ART.placeShort(o.id) : o.name;
+        const line = inside
+          ? `你发现了新地方：${o.name}。你已经在这儿了。`
+          : `你发现了新地方：${o.name}。回到地图，找写着「${short}」和「新解锁」的图钉，它有一圈亮边。走进去以后，这个标记才会去掉。`;
+        if (G._gatherUnlocks) G._gatherUnlocks.push({ kind: 'place', id: o.id, name: o.name, short, line });
+        else { G.log('你发现了新地方：' + o.name, 'good'); G.queue.push({ title: '新地方', text: line }); }
+      } else {
+        const t = (C.unlockText[kind] || '{name}').replace('{name}', o.name);
+        G.log(t, 'good');
+        G.queue.push({ title: '解锁', text: t + (kind === 'job' ? `（${o.window === 'morning' ? '早高峰' : '晚高峰'}在路口招人）` : '') });
+      }
+    }
     return true;
   };
   G.isUnlocked = (kind, o) => !o.locked || !!(S && S.unlocked && S.unlocked[kind + ':' + o.id]);
+  G.placeIsFresh = id => !!(S && S.placeNew && S.placeNew[id]);
+  G.visitPlace = function (id) {
+    if (!G.placeIsFresh(id)) return false;
+    delete S.placeNew[id];
+    G.save();
+    return true;
+  };
   G.jobOpen = j => G.unlockedNow('job', j);
   G.placeOpen = P => G.unlockedNow('place', P);
   G.checkUnlocks = function () {

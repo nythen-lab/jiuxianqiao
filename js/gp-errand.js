@@ -1,41 +1,51 @@
 // v1.0.2 · 给楼上跑腿送外卖 → 贪吃蛇：骑车穿过街区，取外卖（车后的餐盒越串越长），绕开车子、花坛和过马路的人，趁热送到门口。
 (function () {
   const GP = window.GP, U = GP.u, S = GP.S, { rnd, ri, pick, clamp, ease } = U;
-  const NC = 18, NR = 11, T = 34, BX = 34, BY = 66, DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  const NC = 22, NR = 13, T = 26, BX = 18, BY = 56, DIR = [[0, -1], [1, 0], [0, 1], [-1, 0]];
+  const START = [1, 6];
+  // 开头慢，每成功送出一单才快一点，最快也留得出转弯的空档。
+  GP.errandPace = function (delivered, teaching) {
+    const slow = 0.48, cap = 0.2;
+    if (teaching) return slow;
+    return Math.max(cap, Math.round((slow - Math.max(0, delivered) * 0.035) * 1000) / 1000);
+  };
+  const openRoad = (x, y) => (y >= 4 && y <= 8) || x === 6 || x === 15;
   const TAG = ['#e8604a', '#4aa3e8', '#8acb4a', '#e8b84a', '#b06ae8'];
   const FLOORS = ['2 楼', '3 楼', '4 楼', '5 楼', '6 楼', '7 楼'];
   GP.reg('errand', {
     title: '送外卖 · 骑车跑腿', dur: 55, minutes: 40, hours: 3, tint: 'rgba(14,16,20,.62)',
-    help: ['用 ← ↑ → ↓（或 WASD）拐弯，手机在街上划一划，或点右下的方向键。车会一直往前开。', '骑到橙色外卖袋上取单，车后会串起餐盒；再把单子送到发亮的门口。热乎着送到，小费更高，凉了就少了。', '别撞车子、花坛、路边的墙，也别撞到自己的餐盒和过马路的人——一撞汤就洒了，要重新出发（一共 3 条命）。'],
+    help: ['车会自己往前开。← ↑ → ↓、WASD、在街上划一下，或点右下的「转弯」键，都是拐弯，不是加速。', '先在练习里转一次弯，骑到写着「取」的橙色袋子，再送到写着「送」的门口。练习不计时、不扣命。', '会了以后才开始计时。送得越多车越快，但有个最快速度。别撞墙、车子和行人。'],
     make(env) {
-      const g = { dir: 1, queue: [], body: [], carry: [], orders: [], pickups: [], doors: [], peds: [], solid: new Set(), blocks: [], lives: 3, delivered: 0, late: 0, spilled: 0, crashes: 0, tips: 0, step: .19, acc: 0, invul: 0, tele: [], pedT: 2, auto: null, drag: null, hold: null, lastFresh: 0, pressed: null, bonusTips: 0 };
+      const g = { dir: 1, queue: [], body: [], carry: [], orders: [], pickups: [], doors: [], peds: [], solid: new Set(), blocks: [], lives: 3, delivered: 0, late: 0, spilled: 0, crashes: 0, tips: 0, step: GP.errandPace(0, true), acc: 0, invul: 0, tele: [], pedT: 3.4, auto: null, drag: null, hold: null, lastFresh: 0, pressed: null, bonusTips: 0, teach: 'turn', mercy: 4 };
       const key = (x, y) => x + ',' + y, inb = (x, y) => x >= 0 && y >= 0 && x < NC && y < NR;
       // ---------- 地图 ----------
       function build() {
         g.solid = new Set(); g.blocks = [];
-        const START = [2, 5];
-        const tryPlace = (w, h, kind) => { for (let tries = 0; tries < 40; tries++) { const x = ri(1, NC - 1 - w), y = ri(0, NR - h); if (x < 6 && Math.abs(y - 5) < 3) continue; let ok = true; const cells = []; for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) { const cx = x + i, cy = y + j; if (g.solid.has(key(cx, cy))) ok = false; cells.push([cx, cy]); } if (!ok) continue; cells.forEach(([a, b]) => g.solid.add(key(a, b))); if (!connected()) { cells.forEach(([a, b]) => g.solid.delete(key(a, b))); continue; } g.blocks.push({ x, y, w, h, kind, c: ri(0, 5), seed: ri(1, 99) }); return true; } return false; };
+        const tryPlace = (w, h, kind) => { for (let tries = 0; tries < 40; tries++) { const x = ri(1, NC - 1 - w), y = ri(0, NR - h); let ok = true; const cells = []; for (let i = 0; i < w; i++) for (let j = 0; j < h; j++) { const cx = x + i, cy = y + j; if (openRoad(cx, cy) || g.solid.has(key(cx, cy))) ok = false; cells.push([cx, cy]); } if (!ok) continue; cells.forEach(([a, b]) => g.solid.add(key(a, b))); if (!connected()) { cells.forEach(([a, b]) => g.solid.delete(key(a, b))); continue; } g.blocks.push({ x, y, w, h, kind, c: ri(0, 5), seed: ri(1, 99) }); return true; } return false; };
         const connected = () => { const seen = new Set([key(...START)]); const q = [START]; while (q.length) { const [x, y] = q.pop(); DIR.forEach(([dx, dy]) => { const nx = x + dx, ny = y + dy, k = key(nx, ny); if (inb(nx, ny) && !g.solid.has(k) && !seen.has(k)) { seen.add(k); q.push([nx, ny]); } }); } return seen.size >= NC * NR - g.solid.size; };
         ['car', 'car', 'car', 'house', 'house', 'tree', 'tree', 'tree', 'tree', 'bin', 'bin', 'car'].forEach(k => tryPlace(k === 'car' ? 2 : k === 'house' ? 2 : 1, k === 'house' ? 2 : 1, k));
         g.body = [[START[0], START[1]]]; g.dir = 1; g.queue = [];
       }
+      const resetBike = () => { g.body = [[START[0], START[1]]]; g.dir = 1; g.queue = []; g.invul = 1.3; };
       const free = (x, y) => inb(x, y) && !g.solid.has(key(x, y)) && !g.body.some(b => b[0] === x && b[1] === y) && !g.pickups.some(p => p.x === x && p.y === y) && !g.doors.some(d => d.x === x && d.y === y) && !g.peds.some(p => p.x === x && p.y === y);
       const randFree = (minDist) => { for (let i = 0; i < 80; i++) { const x = ri(0, NC - 1), y = ri(0, NR - 1); const h = g.body[0]; if (free(x, y) && Math.abs(x - h[0]) + Math.abs(y - h[1]) >= (minDist || 4)) return [x, y]; } return null; };
       function spawnPickup() { const p = randFree(5); if (p) g.pickups.push({ x: p[0], y: p[1], t: 0, tag: ri(0, TAG.length - 1) }); }
-      build(); spawnPickup(); spawnPickup();
+      build();
       // ---------- 行人 ----------
       function spawnPed() { const vertical = Math.random() < .55; let p; if (vertical) { const x = ri(3, NC - 2), down = Math.random() < .5; p = { x, y: down ? -1 : NR, dx: 0, dy: down ? 1 : -1 }; } else { const y = ri(1, NR - 2), right = Math.random() < .5; p = { x: right ? -1 : NC, y, dx: right ? 1 : -1, dy: 0 }; } p.t = 0; p.skin = pick(['#e5b78f', '#d9a073', '#f0c7a0']); p.shirt = pick(['#4a78c0', '#c0503a', '#4aa070', '#a06ac0', '#d8a83a']); g.tele.push({ p, t: 0 }); }
       // ---------- 前进 ----------
       function crash(why, x, y) {
-        if (g.invul > 0) return; g.crashes++; g.lives--; const lost = g.carry.length; g.spilled += lost; g.carry = []; g.orders = g.orders.filter(o => !o.carried);
-        g.doors = g.doors.filter(d => !d.order.carried && false); g.doors = []; env.penalty(`${why}！汤洒了${lost ? '，' + lost + ' 单作废' : ''}（还剩 ${g.lives} 条命）`, BX + x * T + T / 2, BY + y * T, { shake: 9 }); S.thump(.8); S.noise(0, .3, 700, .22);
+        if (g.invul > 0) return;
+        if (g.teach && g.mercy > 0) { g.mercy--; env.say('先拐弯。车只会往前开，方向键和右下角的键都是转弯。', '#ffe9a8', 1.8); resetBike(); return; }
+        g.crashes++; g.lives--; const lost = g.carry.length; g.spilled += lost; g.carry = []; g.orders = g.orders.filter(o => !o.carried);
+        g.doors = []; env.penalty(`${why}！汤洒了${lost ? '，' + lost + ' 单作废' : ''}（还剩 ${g.lives} 条命）`, BX + x * T + T / 2, BY + y * T, { shake: 9 }); S.thump(.8); S.noise(0, .3, 700, .22);
         env.burst(BX + x * T + T / 2, BY + y * T + T / 2, 22, { colors: ['#e8a24a', '#f4e2b0', '#c8503a'], speed: 220, up: 60, size: 5, life: .8 });
         if (g.lives <= 0) { env.say('被店家叫回去了……', '#ffb4a5', 2.4); g.dead = true; g.endWait = .9; return; }
-        g.body = [[2, 5]]; g.dir = 1; g.queue = []; g.invul = 1.8; spawnPickupIfNeeded();
+        resetBike(); spawnPickupIfNeeded();
       }
       const spawnPickupIfNeeded = () => { for (let tries = 0; tries < 4 && g.pickups.length + g.carry.length < 2; tries++) spawnPickup(); };
       function tick() {
-        if (g.queue.length) { const d = g.queue.shift(); if ((d + 2) % 4 !== g.dir || g.body.length === 1) g.dir = d; }
+        if (g.queue.length) { const d = g.queue.shift(); if ((d + 2) % 4 !== g.dir || g.body.length === 1) g.dir = d; if (g.teach === 'turn' && g.dir !== 1) { g.teach = 'pickup'; g.pickups = [{ x: Math.min(NC - 3, g.body[0][0] + 4), y: g.body[0][1], t: 0, tag: 0 }]; } }
         const h = g.body[0], nx = h[0] + DIR[g.dir][0], ny = h[1] + DIR[g.dir][1];
         if (!inb(nx, ny)) return crash('撞到路边了', clamp(h[0], 0, NC - 1), clamp(h[1], 0, NR - 1));
         if (g.solid.has(key(nx, ny))) return crash('撞上了障碍', nx, ny);
@@ -43,10 +53,10 @@
         if (g.peds.some(p => p.x === nx && p.y === ny)) return crash('撞到行人', nx, ny);
         g.body.unshift([nx, ny]); let grow = false;
         const pi = g.pickups.findIndex(p => p.x === nx && p.y === ny);
-        if (pi >= 0 && g.carry.length < 4) { const p = g.pickups.splice(pi, 1)[0]; const o = { tag: p.tag, fresh: 1, floor: pick(FLOORS), carried: true, id: ++g.oid || (g.oid = 1) }; g.carry.push(o); g.orders.push(o); const d = randFree(5); if (d) g.doors.push({ x: d[0], y: d[1], order: o, t: 0 }); grow = true; S.good(g.carry.length); S.noise(0, .06, 2400, .08, 'bandpass'); env.float(BX + nx * T + T / 2, BY + ny * T, `取单 → ${o.floor}`, '#ffd27a', 20); env.burst(BX + nx * T + T / 2, BY + ny * T + T / 2, 8, { colors: ['#ffd27a', '#fff'], speed: 100, size: 3, life: .5 }); spawnPickupIfNeeded(); }
+        if (pi >= 0 && g.carry.length < 4) { const p = g.pickups.splice(pi, 1)[0]; const o = { tag: p.tag, fresh: 1, floor: pick(FLOORS), carried: true, id: ++g.oid || (g.oid = 1) }; g.carry.push(o); g.orders.push(o); let door = g.teach === 'pickup' ? [Math.min(NC - 2, nx + 5), ny] : randFree(6); if (door && !free(door[0], door[1])) door = randFree(4); if (door) g.doors.push({ x: door[0], y: door[1], order: o, t: 0 }); if (g.teach === 'pickup') g.teach = 'deliver'; grow = true; S.good(g.carry.length); S.noise(0, .06, 2400, .08, 'bandpass'); env.float(BX + nx * T + T / 2, BY + ny * T, `取单 → ${o.floor}`, '#ffd27a', 20); env.burst(BX + nx * T + T / 2, BY + ny * T + T / 2, 8, { colors: ['#ffd27a', '#fff'], speed: 100, size: 3, life: .5 }); if (!g.teach) spawnPickupIfNeeded(); }
         const di = g.doors.findIndex(d => d.x === nx && d.y === ny);
         if (di >= 0) { const d = g.doors.splice(di, 1)[0], o = d.order; const idx = g.carry.indexOf(o); if (idx >= 0) g.carry.splice(idx, 1); o.carried = false; g.delivered++;
-          const hot = o.fresh > .66, warm = o.fresh > .33; const tip = hot ? 3 : warm ? 2 : 1; g.tips += tip; if (!hot) g.late++; g.step = Math.max(.12, g.step - .004);
+          const hot = o.fresh > .66, warm = o.fresh > .33; const tip = hot ? 3 : warm ? 2 : 1; g.tips += tip; if (!hot) g.late++; if (g.teach === 'deliver') { g.teach = null; env.say('会了。现在开始计时，送得越多车才越快。', '#ffe9a8', 1.8); } g.step = GP.errandPace(g.delivered, !!g.teach);
           S.coin(); S.good(4 + g.delivered); env.float(BX + nx * T + T / 2, BY + ny * T, hot ? '热乎！+小费' : warm ? '送到了' : '有点凉了', hot ? '#ffe27a' : warm ? '#bfe8a8' : '#ffb89a', 24); env.burst(BX + nx * T + T / 2, BY + ny * T + T / 2, 14, { colors: ['#ffe27a', '#fff', '#a8f0a0'], speed: 160, up: 80, size: 4, shape: 'star', life: .8 }); env.say(`${o.floor} 送到！${hot ? '热乎着呢' : ''}（${g.delivered} 单）`, '#ffe9a8', 1.3); spawnPickupIfNeeded(); }
         if (!grow && g.body.length > g.carry.length + 1) g.body.pop();
         while (g.body.length > g.carry.length + 1) g.body.pop();
@@ -70,7 +80,7 @@
       const turn = d => { if (g.queue.length < 2 && g.queue[g.queue.length - 1] !== d) g.queue.push(d); };
       g.turn = turn;
       g.key = (k) => { const m = { up: 0, right: 1, down: 2, left: 3 }[k]; if (m != null) { turn(m); return true; } return false; };
-      const pads = [[0, 'up', 770, 340, 56, 52], [3, 'left', 710, 396, 56, 52], [2, 'down', 770, 396, 56, 52], [1, 'right', 830, 396, 56, 52]];
+      const pads = [[0, '上', 748, 292, 64, 50], [3, '左', 680, 346, 64, 50], [2, '下', 748, 346, 64, 50], [1, '右', 816, 346, 64, 50]];
       g.pads = pads;
       g.pointer = (k, x, y) => {
         if (k === 'down') { for (const [d, , bx, by, bw, bh] of pads) if (x >= bx && x <= bx + bw && y >= by && y <= by + bh) { turn(d); g.pressed = d; S.tap(); return; } g.drag = { x, y }; }
@@ -78,21 +88,22 @@
         else if (k === 'up') { g.drag = null; g.pressed = null; }
       };
       g.hud = () => [['送到', g.delivered], ['命', '♥'.repeat(Math.max(0, g.lives)) || '—', g.lives <= 1 ? '#e8705a' : null]];
-      g.playBox = { x: BX, y: BY, w: NC * T, h: NR * T + 50 };
-      g.hint = () => g.delivered === 0 ? (g.carry.length ? '把餐盒送到发亮的门口！别让汤凉了' : '骑到橙色外卖袋上取单') : null;
+      g.playBox = { x: BX, y: BY, w: NC * T, h: NR * T + 36 };
+      g.hintExternal = true;
+      g.hint = () => g.teach === 'turn' ? '车一直往前。按方向键或点「转弯」，是拐弯，不是加速。' : g.teach === 'pickup' ? '骑到写着「取」的橙色袋子上。' : g.teach === 'deliver' ? '把餐盒送到写着「送」的门口。练习不计时。' : null;
       const updateSmall = dt => {
         if (g.dead) { g.endWait -= dt; if (g.endWait <= 0 && !env.ended) env.end(g.final()); return; }
         g.invul = Math.max(0, g.invul - dt); g.acc += dt;
         g.orders.forEach(o => { if (o.carried) { o.fresh -= dt / 26; if (o.fresh <= 0) { o.fresh = 0; o.carried = false; const i = g.carry.indexOf(o); if (i >= 0) g.carry.splice(i, 1); g.doors = g.doors.filter(d => d.order !== o); g.spilled++; env.penalty(`${o.floor} 的客人等不及，退单了`, 450, 200, { shake: 3 }); while (g.body.length > g.carry.length + 1) g.body.pop(); spawnPickupIfNeeded(); } } });
         g.orders = g.orders.filter(o => o.carried);
-        g.pedT -= dt; if (g.pedT <= 0) { spawnPed(); g.pedT = rnd(2.2, 3.6) - Math.min(1, g.delivered * .1); }
+        if (!g.teach) { g.pedT -= dt; if (g.pedT <= 0) { spawnPed(); g.pedT = rnd(3.2, 4.6) - Math.min(.8, g.delivered * .08); } }
         g.tele.forEach(t => { t.t += dt; if (t.t > .9) { g.peds.push(t.p); S.tone(700, 640, .05, .06); t.done = 1; } }); g.tele = g.tele.filter(t => !t.done);
         g.peds.forEach(p => { p.t += dt; if (p.t >= .42) { p.t = 0; p.x += p.dx; p.y += p.dy; p.stepA = (p.stepA || 0) + 1; const h = g.body[0]; if (h && p.x === h[0] && p.y === h[1]) crash('行人撞上来了', p.x, p.y); } }); g.peds = g.peds.filter(p => p.x >= -1 && p.x <= NC && p.y >= -1 && p.y <= NR);
         g.doors.forEach(d => d.t += dt); g.pickups.forEach(p => p.t += dt);
         while (g.acc >= g.step) { g.acc -= g.step; if (g.auto) autoSteer(); tick(); if (g.dead) return; }
       };
       // Fixed physics steps: crossing pedestrians and bike collisions do not depend on display FPS.
-      g.update = dt => { g.simAcc = (g.simAcc || 0) + dt; while (g.simAcc >= 1 / 120 && !env.ended) { g.simAcc -= 1 / 120; updateSmall(1 / 120); } };
+      g.update = dt => { if (g.teach) env.addTime(dt); g.step = GP.errandPace(g.delivered, !!g.teach); g.simAcc = (g.simAcc || 0) + dt; while (g.simAcc >= 1 / 120 && !env.ended) { g.simAcc -= 1 / 120; updateSmall(1 / 120); } };
       // ---------- 画面 ----------
       const bg = U.mk(NC * T, NR * T, (c, w, h) => {
         const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#4a4c52'); gr.addColorStop(1, '#3a3c42'); c.fillStyle = gr; c.fillRect(0, 0, w, h);
@@ -112,8 +123,8 @@
         ctx.save(); ctx.beginPath(); ctx.roundRect(BX - 6, BY - 6, NC * T + 12, NR * T + 12, 14); ctx.fillStyle = '#26211c'; ctx.fill(); ctx.restore();
         ctx.save(); ctx.beginPath(); ctx.roundRect(BX, BY, NC * T, NR * T, 8); ctx.clip(); ctx.drawImage(bg, BX, BY, NC * T, NR * T);
         // 门口
-        g.doors.forEach(d => { const x = BX + d.x * T, y = BY + d.y * T, p = .5 + .5 * Math.sin(d.t * 5); ctx.save(); ctx.shadowColor = TAG[d.order.tag]; ctx.shadowBlur = 12 + p * 8; U.glossy(ctx, x + 3, y + 3, T - 6, T - 6, 8, '#8a5a38', { shadow: false, lw: 1.5 }); ctx.restore(); ctx.fillStyle = '#2a1a0e'; ctx.beginPath(); ctx.roundRect(x + 9, y + 8, T - 18, T - 12, [8, 8, 0, 0]); ctx.fill(); U.rr(ctx, x + 3, y + 3, T - 6, 8, 4, TAG[d.order.tag]); U.txt(ctx, d.order.floor, x + T / 2, y + T + 11, 12, '#fff', 'center', true, 'rgba(0,0,0,.8)'); });
-        g.pickups.forEach(p => { const x = BX + p.x * T + T / 2, y = BY + p.y * T + T / 2 + Math.sin(p.t * 4) * 2; ctx.save(); ctx.shadowColor = '#ffb04a'; ctx.shadowBlur = 14; ctx.translate(x, y); U.glossy(ctx, -11, -10, 22, 22, 6, '#e8923a', { shadow: false }); ctx.strokeStyle = '#7a4a1a'; ctx.lineWidth = 2.4; ctx.beginPath(); ctx.arc(0, -10, 6, Math.PI, 0); ctx.stroke(); ctx.restore(); U.txt(ctx, '外卖', x, y + 4, 10, '#fff', 'center', true, 'rgba(120,60,10,.8)'); });
+        g.doors.forEach(d => { const x = BX + d.x * T, y = BY + d.y * T, p = .5 + .5 * Math.sin(d.t * 5); ctx.save(); ctx.shadowColor = '#7dffa0'; ctx.shadowBlur = 14 + p * 8; U.glossy(ctx, x + 2, y + 2, T - 4, T - 4, 8, '#2f6a3a', { shadow: false, lw: 1.5 }); ctx.restore(); U.txt(ctx, '送', x + T / 2, y + T / 2 + 6, 16, '#fff', 'center', true, 'rgba(0,40,10,.9)'); });
+        g.pickups.forEach(p => { const x = BX + p.x * T + T / 2, y = BY + p.y * T + T / 2 + Math.sin(p.t * 4) * 2; ctx.save(); ctx.shadowColor = '#ffb04a'; ctx.shadowBlur = 16; ctx.translate(x, y); U.glossy(ctx, -13, -12, 26, 24, 6, '#e8923a', { shadow: false }); ctx.restore(); U.txt(ctx, '取', x, y + 5, 16, '#fff', 'center', true, 'rgba(90,40,0,.9)'); });
         g.blocks.forEach(b => drawBlock(ctx, b));
         // 行人预警
         g.tele.forEach(t => { const p = t.p, px = Math.min(NC - 1, Math.max(0, p.x + (p.dx === 0 ? 0 : -p.dx * 0 + (p.dx > 0 ? 1 : -1)))), py = Math.min(NR - 1, Math.max(0, p.y + (p.dy === 0 ? 0 : (p.dy > 0 ? 1 : -1)))); const bl = Math.floor(t.t * 10) % 2; if (bl) { ctx.fillStyle = 'rgba(255,90,70,.4)'; ctx.fillRect(BX + (p.dx ? (p.dx > 0 ? 0 : NC - 1) : p.x) * T, BY + (p.dy ? (p.dy > 0 ? 0 : NR - 1) : p.y) * T, T, T); U.txt(ctx, '!', BX + (p.dx ? (p.dx > 0 ? 0 : NC - 1) : p.x) * T + T / 2, BY + (p.dy ? (p.dy > 0 ? 0 : NR - 1) : p.y) * T + T / 2 + 8, 22, '#fff', 'center', true); } });
@@ -128,7 +139,8 @@
         g.carry.forEach((o, i) => { const y = 112 + i * 52; U.rr(ctx, 676, y, 198, 44, 10, 'rgba(0,0,0,.35)', 'rgba(255,230,180,.25)', 1.2); drawBox(ctx, 698, y + 22, TAG[o.tag], 24); U.txt(ctx, `送 ${o.floor}`, 720, y + 20, 15, '#fff3d6', 'left', true); U.rr(ctx, 720, y + 26, 140, 9, 4.5, 'rgba(0,0,0,.5)'); const col = o.fresh > .66 ? '#ffb04a' : o.fresh > .33 ? '#9ac8e8' : '#6a8ab0'; U.rr(ctx, 721, y + 27, Math.max(6, 138 * o.fresh), 7, 3.5, col); });
         if (!g.carry.length) U.txt(ctx, '空车，去取外卖', 775, 200, 15, '#bfb39a', 'center');
         U.txt(ctx, o2(g.tips), 775, 316, 13, '#cfe8b8', 'center');
-        pads.forEach(([d, , bx, by, bw, bh]) => { const on = g.pressed === d; ctx.save(); if (on) ctx.translate(0, 2); U.glossy(ctx, bx, by, bw, bh, 12, on ? '#c98a28' : '#6a5a46', { so: on ? 1 : 3 }); U.txt(ctx, ['▲', '▶', '▼', '◀'][d], bx + bw / 2, by + bh / 2 + 8, 24, '#fff3d6', 'center', true); ctx.restore(); });
+        U.txt(ctx, '转弯', 780, 278, 16, '#ffe9a8', 'center', true);
+        pads.forEach(([d, label, bx, by, bw, bh]) => { const on = g.pressed === d; ctx.save(); if (on) ctx.translate(0, 2); U.glossy(ctx, bx, by, bw, bh, 12, on ? '#c98a28' : '#6a5a46', { so: on ? 1 : 3 }); U.txt(ctx, ['▲', '▶', '▼', '◀'][d], bx + bw / 2, by + bh / 2 + 2, 18, '#fff3d6', 'center', true); U.txt(ctx, label, bx + bw / 2, by + bh - 6, 12, '#fff3d6', 'center'); ctx.restore(); });
         U.txt(ctx, '热乎的单子小费更高', 34, 482, 14, '#cbbfa6');
       };
       const o2 = n => n ? `小费 +¥${n}` : '';

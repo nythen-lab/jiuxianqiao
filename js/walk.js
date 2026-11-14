@@ -44,14 +44,14 @@
   // 走路：按距离扣体力；约 30% 碰上小事（自动化测试默认不触发，WALK_EVENTS=true 才开）
   WALK.enabled = () => !(navigator.webdriver && !window.WALK_EVENTS);
   UI0.go = function (loc) {
-    const S = G0.S(); if (loc === S.loc) { S.view = 'place'; return UI0.render(); }
+    const S = G0.S(); if (loc === S.loc) { if (G0.visitPlace) G0.visitPlace(loc); S.view = 'place'; return UI0.render(); }
     const LP = CONFIG.places.find(p => p.id === loc); if (!LP || (G0.placeOpen && !G0.placeOpen(LP))) return UI0.toast('还没开放' + (LP && LP.unlockHint ? '：' + LP.unlockHint : ''), 'bad');
     const base = G0.travelMin ? G0.travelMin(S.loc, loc) : 10; const from = S.loc;
     UI0.act(async () => {
       const m = Math.round(base * G0.slowMult()); G0.advance(m); const cost = clamp(Math.round(m / 10), 1, 4); G0.change({ stamina: -cost });
       UI0.toast(m > base ? `腿沉，走了 ${m} 分钟 · 体力 -${cost}` : `走了 ${m} 分钟 · 体力 -${cost}`);
       if (WALK.enabled() && WALK.should()) { const ctx = ctxNow(from, loc); const ev = WALK.pickEvent(ctx); if (ev) await WALK.run(ev, ctx); }
-      S.loc = loc; S.view = 'place'; if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G0.hourF() >= 16 && G0.hourF() < 20) G0.fireEvents('corner'); if (window.LIFE) await LIFE.onArrive(loc);
+      S.loc = loc; S.view = 'place'; if (G0.visitPlace) G0.visitPlace(loc); if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G0.hourF() >= 16 && G0.hourF() < 20) G0.fireEvents('corner'); if (window.LIFE) await LIFE.onArrive(loc);
     });
   };
 })();

@@ -415,10 +415,10 @@
   };
 
   UI.go = function (loc) {
-    const S = G.S(); if (loc === S.loc) { S.view = 'place'; return UI.render(); }
+    const S = G.S(); if (loc === S.loc) { if (G.visitPlace) G.visitPlace(loc); S.view = 'place'; return UI.render(); }
     const LP = C.places.find(p => p.id === loc); if (!LP || (G.placeOpen && !G.placeOpen(LP))) return UI.toast('还没开放' + (LP && LP.unlockHint ? '：' + LP.unlockHint : ''), 'bad');
     const base = G.travelMin ? G.travelMin(S.loc, loc) : 10;
-    act(async () => { const m = Math.round(base * G.slowMult()); G.advance(m); if (m > base) UI.toast(`腿沉，走了 ${m} 分钟`); else UI.toast(`走了 ${m} 分钟`); S.loc = loc; S.view = 'place'; if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G.hourF() >= 16 && G.hourF() < 20) G.fireEvents('corner'); if (window.LIFE) await LIFE.onArrive(loc); });
+    act(async () => { const m = Math.round(base * G.slowMult()); G.advance(m); if (m > base) UI.toast(`腿沉，走了 ${m} 分钟`); else UI.toast(`走了 ${m} 分钟`); S.loc = loc; S.view = 'place'; if (G.visitPlace) G.visitPlace(loc); if (loc === 'lottery') S.flags.visitedLottery = 1; if (loc === 'corner' && G.hourF() >= 16 && G.hourF() < 20) G.fireEvents('corner'); if (window.LIFE) await LIFE.onArrive(loc); });
   };
 
   // ---------- 地点面板 ----------
@@ -816,7 +816,8 @@
     const rows = C.places.filter(p => C.townMap.pins[p.id]).map(p => {
       const unl = G.isUnlocked('place', p), here = p.id === S.loc, o = G.isOpen(p);
       if (!unl) return `<div class="mrow locked" title="${p.unlockHint || ''}"><i>🔒</i><b>？？？</b><small>${p.unlockHint || '还没开放'}</small></div>`;
-      return `<button class="mrow${here ? ' here' : ''}${o ? '' : ' shut'}" data-go="${p.id}"><i>${A.placeIcon(p.id)}</i><b>${A.placeShort(p.id)}</b><small>${here ? '你在这儿' : G.travelMin(S.loc, p.id) + ' 分钟'}${o ? '' : ' · 已打烊'}</small></button>`;
+      const fresh = G.placeIsFresh && G.placeIsFresh(p.id);
+      return `<button class="mrow${here ? ' here' : ''}${o ? '' : ' shut'}${fresh ? ' fresh' : ''}" data-go="${p.id}"><i>${A.placeIcon(p.id)}</i><b>${A.placeShort(p.id)}</b><small>${here ? '你在这儿' : G.travelMin(S.loc, p.id) + ' 分钟'}${o ? '' : ' · 已打烊'}${fresh ? ' · 新解锁' : ''}</small></button>`;
     }).join('');
     const win = G.currentWindow ? G.currentWindow() : null;
     const tips = [win ? `👷 ${ST.windows[win].label}：路口正在招工` : `👷 招工时段：早上 4:00–7:00、下午 4:00–7:30（路口）`];
