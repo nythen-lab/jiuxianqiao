@@ -30,16 +30,45 @@
   // ---------- 弹窗（返回 Promise） ----------
   UI.modal = function (o) {
     return new Promise(res => {
-      const m = $('#modal'); m.className = 'modal' + (o.wide ? ' wide' : '') + (o.cls ? ' ' + o.cls : '') + (o.bg ? ' hasbg' : ''); m.style.setProperty('--mbg', o.bg ? `url("${new URL(o.bg, location.href).href}")` : 'none');
-      m.innerHTML = `<div class="box">${o.title ? `<h2>${o.title}</h2>` : ''}<div class="mbody">${o.html || ''}</div><div class="mbtns"></div></div>`;
+      const m = $('#modal');
+      const prev = document.activeElement;
+      const screens = [...document.querySelectorAll('#stage > .screen')];
+      screens.forEach(s => { s.inert = true; });
+      let done = false;
+      const finish = v => {
+        if (done) return;
+        done = true;
+        m.className = 'modal hidden';
+        m.innerHTML = '';
+        screens.forEach(s => { s.inert = false; });
+        document.removeEventListener('keydown', onKey, true);
+        if (prev && prev.isConnected && typeof prev.focus === 'function') { try { prev.focus(); } catch (e) {} }
+        res(v);
+      };
+      const onKey = e => {
+        if (e.key !== 'Escape' || done) return;
+        const buttons = [...m.querySelectorAll('.mbtns .btn')];
+        const cancel = buttons.find(b => /^(合上|关闭|返回|继续玩|算了|先不|不睡了|不刮了|再看看|再想想|不做了|不吃了|先这样)/.test((b.textContent || '').trim()));
+        const target = cancel || (buttons.length === 1 ? buttons[0] : null);
+        if (!target || target.disabled) return;
+        e.preventDefault();
+        e.stopPropagation();
+        target.click();
+      };
+      document.addEventListener('keydown', onKey, true);
+      m.className = 'modal' + (o.wide ? ' wide' : '') + (o.cls ? ' ' + o.cls : '') + (o.bg ? ' hasbg' : '');
+      m.style.setProperty('--mbg', o.bg ? `url("${new URL(o.bg, location.href).href}")` : 'none');
+      m.innerHTML = `<div class="box" role="dialog" aria-modal="true">${o.title ? `<h2>${o.title}</h2>` : ''}<div class="mbody">${o.html || ''}</div><div class="mbtns"></div></div>`;
       const bt = m.querySelector('.mbtns');
       (o.buttons || [{ text: '好' }]).forEach((b, i) => {
         const e = document.createElement('button'); e.className = 'btn ' + (b.cls || (i === 0 ? 'primary' : '')); e.textContent = b.text; if (b.disabled) e.disabled = true; if (b.id) e.id = b.id;
-        e.onclick = () => { if (b.keep) { b.fn && b.fn(); return; } m.className = 'modal hidden'; m.innerHTML = ''; res(b.value != null ? b.value : i); };
+        e.onclick = () => { if (b.keep) { b.fn && b.fn(); return; } finish(b.value != null ? b.value : i); };
         bt.appendChild(e);
       });
       const mb = m.querySelector('.mbody'); if (mb) mb.scrollTop = 0; m.querySelector('.box').scrollTop = 0;
-      if (o.onShow) o.onShow(m, v => { m.className = 'modal hidden'; m.innerHTML = ''; res(v); });
+      if (o.onShow) o.onShow(m, finish);
+      const focus = m.querySelector('.mbtns .btn:not([disabled])') || m.querySelector('.box');
+      if (focus) { if (!focus.hasAttribute('tabindex') && focus.classList.contains('box')) focus.tabIndex = -1; try { focus.focus(); } catch (e) {} }
     });
   };
   UI.toast = function (t, cls) { const d = document.createElement('div'); d.className = 'toast ' + (cls || ''); d.textContent = t; $('#toasts').appendChild(d); setTimeout(() => d.remove(), 3200); };

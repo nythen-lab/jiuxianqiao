@@ -5,7 +5,8 @@
 html,body { margin:0; height:100%; background:#1b1a1f; overflow:hidden; font-family:var(--font); color:var(--ink); }
 #stage { position:absolute; left:50%; top:50%; width:1280px; height:800px; transform-origin:center; background:var(--paper); overflow:hidden;
   background-image: radial-gradient(#0000000a 1px, transparent 1px); background-size:5px 5px; }
-.screen { position:absolute; inset:0; display:none; }
+/* 图钉按纵坐标排，z-index 能高过对话框。画面先收成一层，图钉就出不了这一层。 */
+.screen { position:absolute; inset:0; display:none; z-index:1; }
 .screen.on { display:block; }
 .hidden { display:none !important; }
 button { font-family:var(--font); }
